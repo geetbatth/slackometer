@@ -2,6 +2,7 @@
 // Secondary signal only: it never changes pass/fail.
 import { run } from "./proc.ts"
 import { DEFAULT_ISOLATION } from "./claude.ts"
+import { claudeEnv } from "./isolate.ts"
 import type { Effort } from "./types.ts"
 
 export interface JudgeOpts { model: string; effort: Effort; isolation?: string[] }
@@ -13,7 +14,7 @@ export async function judgeUi(dir: string, screens: string[], brief: string, rub
     "", "Brief:", brief, "", "Rubric (score each point, then give one overall score 1-5):", rubric, "",
     'Reply with exactly ONE line of JSON and nothing else: {"score": <number 1-5>, "reasons": "<under 40 words>"}',
   ].join("\n")
-  const r = await run("claude", ["-p", prompt, "--model", o.model, "--effort", o.effort, "--max-turns", "6", "--output-format", "json", "--allowedTools", "Read", ...(o.isolation ?? DEFAULT_ISOLATION)], { cwd: dir, shell: false, timeoutMs: 300_000 })
+  const r = await run("claude", ["-p", prompt, "--model", o.model, "--effort", o.effort, "--max-turns", "6", "--output-format", "json", "--allowedTools", "Read", ...(o.isolation ?? DEFAULT_ISOLATION)], { cwd: dir, shell: false, timeoutMs: 300_000, env: await claudeEnv(300_000) })
   try {
     const text = String(JSON.parse(r.stdout).result ?? "")
     const line = text.split(/\r?\n/).reverse().find((l) => l.trim().startsWith("{"))

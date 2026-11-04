@@ -13,7 +13,7 @@ const DEFAULT_CRED = join(homedir(), ".claude", ".credentials.json")
 
 interface Creds { accessToken: string; expiresAt: number }
 
-function readCreds(credPath: string): Creds {
+export function readCreds(credPath: string = DEFAULT_CRED): Creds {
   if (process.platform === "darwin" && credPath === DEFAULT_CRED && !existsSync(credPath)) {
     // macOS keeps Claude Code's login in the Keychain (untested here)
     const r = spawnSync("security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"], { encoding: "utf8" })
@@ -28,7 +28,7 @@ function readCreds(credPath: string): Creds {
 }
 
 /** Ask Claude Code to refresh its own token (cheapest possible call). */
-async function defaultRefresh(): Promise<void> {
+export async function defaultRefresh(): Promise<void> {
   await run("claude", ["-p", "ok", "--max-turns", "1", "--model", "claude-haiku-5-5", "--output-format", "json"], { shell: false, timeoutMs: 120_000 })
 }
 

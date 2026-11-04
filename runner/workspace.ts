@@ -1,13 +1,13 @@
 import { cp, mkdir, rm } from "node:fs/promises"
 import { existsSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { runsRoot } from "./isolate.ts"
 import { join, sep } from "node:path"
 import { randomBytes } from "node:crypto"
 import type { TaskDef } from "./types.ts"
 
 /** Fresh copy of ONLY the task's workspace/. Graders and references never come along. */
 export async function makeRunDir(t: TaskDef): Promise<string> {
-  const dir = join(tmpdir(), "slackometer", `${t.id}-${randomBytes(4).toString("hex")}`)
+  const dir = join(runsRoot(), `${t.id}-${randomBytes(4).toString("hex")}`)
   await mkdir(dir, { recursive: true })
   const SKIP = new Set(["bin", "obj", "node_modules", "__pycache__", ".pytest_cache"])
   const src = join(t.dir, "workspace")

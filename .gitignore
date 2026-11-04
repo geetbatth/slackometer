@@ -7,3 +7,6 @@ web/dist/
 local.json
 node_modules/
 .superpowers/
+
+# isolation probe output (lists what the model could see; local only)
+runner/fixtures/probe.md

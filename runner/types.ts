@@ -10,7 +10,7 @@ export interface LocalConfig {
   cutoff: string; judge: { model: string; effort: Effort }
   quiet: { scheduled_tasks: string[]; close_apps: string[]; manual: string[] }
   home_dir?: string                  // local-only data (transcripts, usage, locks); default ~/.slackometer
-  claude_isolation_args?: string[]   // set by `probe`; default --bare --strict-mcp-config
+  claude_isolation_args?: string[]   // extra flags; default --strict-mcp-config (isolation itself comes from isolate.ts)
 }
 export interface TaskDef {
   id: string; bench: string; title: string; language: string; kind: string
