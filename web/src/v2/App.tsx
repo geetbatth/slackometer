@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Moon, Sun, ArrowUpRight } from "lucide-react"
+import { GithubButton, GithubMark, REPO_URL } from "@/components/github-link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -92,7 +93,10 @@ export default function AppV2() {
           <nav className="hidden items-center gap-3 text-base lg:flex" aria-label="Sections">
             {[["verdict", "Verdict"], ["moments", "Dumb moments"], ["trends", "Trends"], ["cheat", "Cheat sheet"], ["details", "Details"]].map(([id, l]) => <a key={id} href={"#" + id} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }) }} className="hover:underline">{l}</a>)}
           </nav>
-          <Button variant="outline" size="icon-sm" className="bg-card" onClick={() => setDark(!dark)} aria-label={dark ? "Graph paper (light)" : "Blueprint (dark)"}>{dark ? <Sun /> : <Moon />}</Button>
+          <div className="flex items-center gap-2">
+            <GithubButton className="bg-card" />
+            <Button variant="outline" size="icon-sm" className="bg-card" onClick={() => setDark(!dark)} aria-label={dark ? "Graph paper (light)" : "Blueprint (dark)"}>{dark ? <Sun /> : <Moon />}</Button>
+          </div>
         </div>
       </header>
 
@@ -229,6 +233,7 @@ export default function AppV2() {
           <p className="flex-1">
             {D.sample ? "Sample data generated " : "Updated "}{new Date(D.generated_at).toLocaleString()}. Costs are API-equivalent, not money charged on a subscription. Held together with a plunger and Claude Code.
           </p>
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 underline"><GithubMark /> Run it yourself / add tasks</a>
           <a href="?v=1" className="inline-flex items-center gap-1 underline">See the v1 design <ArrowUpRight className="size-4" /></a>
         </footer>
       </main>

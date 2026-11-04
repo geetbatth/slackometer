@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Moon, Sun } from "lucide-react"
+import { GithubButton } from "@/components/github-link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
@@ -100,9 +101,12 @@ export default function App() {
           </div>
           {D.sample && <Badge variant="outline" className="doodle-sm tilt-r ml-1 hidden bg-warn-wash text-sm sm:inline-flex">Sample data · fake robots, fake drama</Badge>}
         </div>
-        <Button variant="outline" size="icon" className="doodle-sm bg-card" onClick={() => setDark(!dark)} aria-label={dark ? "Switch to graph paper (light)" : "Switch to blueprint (dark)"}>
-          {dark ? <Sun /> : <Moon />}
-        </Button>
+        <div className="flex items-center gap-2">
+          <GithubButton size="icon" className="doodle-sm bg-card" />
+          <Button variant="outline" size="icon" className="doodle-sm bg-card" onClick={() => setDark(!dark)} aria-label={dark ? "Switch to graph paper (light)" : "Switch to blueprint (dark)"}>
+            {dark ? <Sun /> : <Moon />}
+          </Button>
+        </div>
       </header>
 
       {/* ---------- filters: one row, scope everything below ---------- */}
