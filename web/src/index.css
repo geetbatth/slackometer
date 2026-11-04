@@ -96,21 +96,21 @@
   --seq-0: #eef4fc; --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec; --seq-4: #3987e5; --seq-5: #256abf; --seq-6: #184f95;
 }
 .dark {
-  --paper: #141414;
-  --ink: #ececec;
-  --grid: rgb(255 255 255 / 0.05);
-  --card: #1f1f1f;
-  --popover: #1f1f1f;
-  --primary-foreground: #141414;
-  --secondary: #2a2a2a; --muted: #2a2a2a; --accent: #2a2a2a;
-  --muted-foreground: #9a9a9a;
-  --border: rgb(236 236 236 / 0.2);
-  --input: rgb(236 236 236 / 0.38);
+  --paper: #1d2722;
+  --ink: #eef2ea;
+  --grid: rgb(225 240 228 / 0.07);
+  --card: #26332c;
+  --popover: #26332c;
+  --primary-foreground: #1d2722;
+  --secondary: #2f3d35; --muted: #2f3d35; --accent: #2f3d35;
+  --muted-foreground: #a7b5aa;
+  --border: rgb(238 242 234 / 0.2);
+  --input: rgb(238 242 234 / 0.38);
   --s1: #3987e5; --s2: #d95926; --s3: #199e70;
-  --good-ink: #3fd13f; --crit-ink: #ff8a80; --warn-ink: #fab219;
-  --crit-wash: #3d1e1e; --warn-wash: #3a3018;
-  --shadow-ink: #000000;
-  --seq-0: #1d2430; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
+  --good-ink: #5fe05f; --crit-ink: #ff8a80; --warn-ink: #fab219;
+  --crit-wash: #4a2a26; --warn-wash: #3d3a1e;
+  --shadow-ink: #0e1411;
+  --seq-0: #22302a; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
 }
 
 @layer base {
