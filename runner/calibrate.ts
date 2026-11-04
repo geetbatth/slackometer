@@ -62,7 +62,7 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
     readUsage: () => realReadUsage(),
     today: () => new Date().toISOString().slice(0, 10),
     log: (s) => console.log(s),
-    withQuiet: async (c, fn) => (await import("./quiet.ts")).withQuiet(c, fn),
+    withQuiet: async (c, fn) => (await import("./quiet.ts")).withQuiet(c, fn, { readUsage: () => realReadUsage() }),
     ...opts.deps,
   }
   const tasks = loadTasks(cfg).filter((t) => {
