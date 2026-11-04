@@ -1,0 +1,1 @@
+{"id":"sleep-task","title":"sleep-task title","language":"JavaScript","kind":"bug fix","difficulty":"easy","version":1,"ui":false,"time_limit_min":1,"max_turns":5,"required_tools":["node"],"test_command_hints":["node --test"],"grade":"node .grader/sleep.mjs","added_by":"test"}
