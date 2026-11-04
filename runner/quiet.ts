@@ -15,7 +15,7 @@ export interface QuietExec {
   kill(pid: number): Promise<void>
   launch(path: string): Promise<void>
 }
-export interface PauseManifest { since: string; tasks: string[]; apps: { name: string; path: string }[]; manual: string[] }
+export interface PauseManifest { owner_pid?: number; since: string; tasks: string[]; apps: { name: string; path: string }[]; manual: string[] }
 interface Opts { exec?: QuietExec; statePath?: string; confirm?: (q: string) => Promise<boolean>; waitMs?: number; settleMs?: number; log?: (s: string) => void }
 
 export const DEFAULT_STATE = join(homedir(), ".slackometer", "state", "paused.json")
@@ -47,7 +47,7 @@ export async function pause(cfg: LocalConfig, o: Opts = {}): Promise<PauseManife
   const tasks: string[] = []
   for (const n of cfg.quiet.scheduled_tasks) if ((await exec.taskEnabled(n)) === true) tasks.push(n)
   const procs = await exec.findProcesses(cfg.quiet.close_apps)
-  const manifest: PauseManifest = { since: new Date().toISOString(), tasks, apps: procs.map((p) => ({ name: p.name, path: p.path })), manual: cfg.quiet.manual }
+  const manifest: PauseManifest = { owner_pid: process.pid, since: new Date().toISOString(), tasks, apps: procs.map((p) => ({ name: p.name, path: p.path })), manual: cfg.quiet.manual }
   // write the undo list BEFORE touching anything
   mkdirSync(dirname(sp), { recursive: true })
   writeFileSync(sp, JSON.stringify(manifest, null, 2))
@@ -79,7 +79,12 @@ export async function resume(o: Opts = {}): Promise<void> {
 
 /** Called at the start of every command: a crashed calibration never leaves things paused. */
 export async function resumeIfPaused(): Promise<void> {
-  if (existsSync(DEFAULT_STATE)) { console.log("Found a paused calibration; restoring everything first."); await resume() }
+  if (!existsSync(DEFAULT_STATE)) return
+  const owner = (JSON.parse(readFileSync(DEFAULT_STATE, "utf8")) as PauseManifest).owner_pid
+  const { isAlive } = await import("./lock.ts")
+  if (owner && owner !== process.pid && isAlive(owner)) return // a calibration is running right now; leave its pause alone
+  console.log("Found a paused calibration that is no longer running; restoring everything first.")
+  await resume()
 }
 
 export async function withQuiet(cfg: LocalConfig, fn: () => Promise<void>, o: Opts & { readUsage?: () => Promise<{ seven_day: number; five_hour: number }> } = {}): Promise<void> {

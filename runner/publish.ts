@@ -1,4 +1,5 @@
-// Commit this machine's results and the rebuilt site data, then push. Rebase and retry on a race; never force.
+// Publish this machine's results: pull first, rebuild the site index on top of everyone's results, commit, push.
+// On a push race: undo our commit, pull again, rebuild, retry (max 3). Never force-push.
 import { appendFileSync, existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { run } from "./proc.ts"
@@ -21,21 +22,32 @@ function excludePrivate(cfg: LocalConfig) {
   if (lines.length) appendFileSync(excl, "\n" + lines.join("\n") + "\n")
 }
 
-export async function publish(cfg: LocalConfig, message: string): Promise<void> {
+async function hasUpstream(cwd: string) { return (await git(cwd, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")).ok }
+
+export async function publish(cfg: LocalConfig, message: string, rebuild: () => Promise<unknown> = async () => {}): Promise<void> {
   const cwd = cfg.repo_dir
   excludePrivate(cfg)
-  const toAdd = ["results", "site/data"].filter((p) => existsSync(join(cwd, p)))
-  if (!toAdd.length) return
-  await git(cwd, "add", "--", ...toAdd)
-  const staged = await git(cwd, "diff", "--cached", "--quiet")
-  if (staged.ok) return // nothing to commit
-  const c = await git(cwd, "commit", "-q", "-m", message)
-  if (!c.ok) throw new Error(`git commit failed: ${c.out}`)
+  const upstream = await hasUpstream(cwd)
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const p = await git(cwd, "push", "-q", "origin", "HEAD")
-    if (p.ok) return
-    if (!/non-fast-forward|fetch first|rejected/i.test(p.out) || attempt === 3) throw new Error(`git push failed: ${p.out}`)
-    const r = await git(cwd, "pull", "-q", "--rebase", "origin", "HEAD")
-    if (!r.ok) { await git(cwd, "rebase", "--abort"); throw new Error(`git pull --rebase failed (results are committed locally; push by hand): ${r.out}`) }
+    if (upstream) {
+      // the generated index will be rebuilt, so drop any local copy that would conflict with the pull
+      await git(cwd, "checkout", "--", "site/data")
+      const p = await git(cwd, "pull", "-q", "--rebase", "--autostash")
+      if (!p.ok) { await git(cwd, "rebase", "--abort"); throw new Error(`git pull failed (results are saved locally; publish later): ${p.out}`) }
+    }
+    await rebuild()
+    const toAdd = ["results", "site/data"].filter((p) => existsSync(join(cwd, p)))
+    if (!toAdd.length) return
+    await git(cwd, "add", "--", ...toAdd)
+    if ((await git(cwd, "diff", "--cached", "--quiet")).ok) return // nothing new
+    const c = await git(cwd, "commit", "-q", "-m", message)
+    if (!c.ok) throw new Error(`git commit failed: ${c.out}`)
+    if (!upstream) return
+    const push = await git(cwd, "push", "-q")
+    if (push.ok) return
+    if (!/non-fast-forward|fetch first|rejected/i.test(push.out) || attempt === 3) throw new Error(`git push failed (results are committed locally): ${push.out}`)
+    // someone pushed meanwhile: undo our commit (keep the files), pull, rebuild, try again
+    await git(cwd, "reset", "-q", "--soft", "HEAD~1")
+    await git(cwd, "reset", "-q")
   }
 }

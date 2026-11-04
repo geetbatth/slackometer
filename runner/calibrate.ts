@@ -8,6 +8,7 @@ import { readUsage as realReadUsage, addSample, currentRate, guard } from "./usa
 import type { Contender, Effort, LocalConfig, RunResult, SuiteLock, TaskDef, Usage } from "./types.ts"
 
 const DIFF_ORDER = { easy: 0, medium: 1, hard: 2 } as const
+const GUARD_WAIT = 20 * 60_000
 export const DEFAULT_RUN_COST: Record<Effort, number> = { low: 0.25, medium: 0.4, high: 0.7, xhigh: 1.2, max: 2 }
 
 /** Deterministic, language-balanced pick that fits planTo x allowance (all levels of a task count together). */
@@ -54,6 +55,7 @@ export interface CalDeps {
   withQuiet: (cfg: LocalConfig, fn: () => Promise<void>) => Promise<void>
   today: () => string
   log: (s: string) => void
+  sleep: (ms: number) => Promise<void>
 }
 
 export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { yes: boolean; deps?: Partial<CalDeps> }): Promise<SuiteLock | null> {
@@ -62,6 +64,7 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
     readUsage: () => realReadUsage(),
     today: () => new Date().toISOString().slice(0, 10),
     log: (s) => console.log(s),
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     withQuiet: async (c, fn) => (await import("./quiet.ts")).withQuiet(c, fn, { readUsage: () => realReadUsage() }),
     ...opts.deps,
   }
@@ -84,21 +87,40 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
   const prev = latestLock(cfg, contender)
   const version = (prev?.version ?? 0) + 1
   const date = d.today()
+  const calDir = join(paths(cfg).machineResults, `calibration-v${version}`)
+  const stateFile = join(calDir, "state.json")
   const results: RunResult[] = []
   const usage: { before: Usage | null; after: Usage | null } = { before: null, after: null }
   await d.withQuiet(cfg, async () => {
-    usage.before = await d.readUsage()
+    // an unfinished calibration of this version is resumed, measuring from its original start
+    usage.before = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")).usage_before : await d.readUsage()
+    mkdirSync(calDir, { recursive: true })
+    writeFileSync(stateFile, JSON.stringify({ started: date, usage_before: usage.before }, null, 2))
     for (const t of tasks) for (const e of efforts) {
-      const u = await d.readUsage().catch(() => null)
-      const g = u ? guard(u, cfg) : { ok: false, reason: "usage unreadable" }
-      if (!g.ok) throw new Error(`stopping calibration: ${g.reason}. Finished runs are kept in results/${cfg.machine}/calibration-v${version}.`)
+      const done = join(calDir, `${t.id}__${e}.json`)
+      if (existsSync(done)) {
+        const r = JSON.parse(readFileSync(done, "utf8")) as RunResult
+        if (r.end !== "limited") { results.push(r); continue }
+      }
+      // wait out the usage guard (up to 12 h) instead of throwing the night away
+      for (let waited = 0; ; waited += GUARD_WAIT) {
+        const u = await d.readUsage().catch(() => null)
+        const g = u ? guard(u, cfg) : { ok: false, reason: "usage unreadable" }
+        if (g.ok) break
+        if (waited >= 12 * 3_600_000) throw new Error(`stopping calibration: ${g.reason}. Finished runs are kept; run calibrate --yes again to continue.`)
+        d.log(`  waiting: ${g.reason}`); await d.sleep(GUARD_WAIT)
+      }
       d.log(`  ${t.id} @ ${e}`)
       results.push(await d.runOne(t, e, { cfg, date: `calibration-v${version}`, suiteVersion: version, contender }))
     }
     usage.after = await d.readUsage()
   })
   const usd = results.reduce((a, r) => a + r.cost_usd, 0)
-  const dPct = usage.after!.seven_day - usage.before!.seven_day
+  const before = usage.before!, after = usage.after!
+  if (before.seven_day_resets_at && after.seven_day_resets_at && before.seven_day_resets_at !== after.seven_day_resets_at)
+    throw new Error("your weekly usage window reset during calibration, so the rate can't be measured. Run calibrate --yes again (finished runs are reused).")
+  const dPct = after.seven_day - before.seven_day
+  if (dPct <= 0) throw new Error(`weekly usage didn't move (${dPct} points) over $${usd.toFixed(2)} of runs, so the rate can't be measured. Run calibrate --yes again later (finished runs are reused).`)
   if (dPct < 5) d.log(`Note: weekly usage moved only ${dPct} points; the rate is rough until more run days refine it.`)
   addSample(rateFile, { date, d_pct: dPct, usd, clean: dPct >= 5 || known == null })
   const rate = currentRate(rateFile)
@@ -114,7 +136,7 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
     costs.set(t.id, { task: t, usd: usdBy })
   }
   const ids = selectSuite(costs, allowance, cfg.budget.plan_to)
-  if (!ids.length) d.log("WARNING: no task fits the budget at every level. Raise budget.percent_of_weekly_per_run or run fewer effort levels.")
+  if (!ids.length) throw new Error(`no task fits a $${allowance.toFixed(2)} run-day allowance at every level. Raise budget.percent_of_weekly_per_run or run fewer effort levels, then calibrate again (finished runs are reused).`)
   const lock: SuiteLock = {
     contender: contenderId(contender), machine: cfg.machine, version, calibrated_at: date, efforts,
     tasks: ids.map((id) => ({ id, version: costs.get(id)!.task.version, cost_usd: costs.get(id)!.usd })),

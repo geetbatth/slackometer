@@ -48,7 +48,8 @@ test("calibrate refuses without --yes and runs nothing", async () => {
 
 test("calibrate with --yes runs every task x level, derives the rate and writes a lock", async () => {
   const repo = mkdtempSync(join(tmpdir(), "slk-cal-"))
-  const cfg = { ...fixtureCfg(), repo_dir: repo, exclude_tasks: ["crash-task", "sleep-task"] }
+  const base = fixtureCfg()
+  const cfg = { ...base, repo_dir: repo, exclude_tasks: ["crash-task", "sleep-task"], budget: { ...base.budget, percent_of_weekly_per_run: 20, ceiling_percent_of_weekly_per_run: 30 } }
   const seen: string[] = []
   let week = 20
   const lock = await calibrate(cfg, cfg.contenders[0], { yes: true, deps: {
@@ -60,7 +61,8 @@ test("calibrate with --yes runs every task x level, derives the rate and writes 
   assert.deepEqual(seen.sort(), ["ok-task/high", "ok-task/medium", "ok-task/xhigh"])
   assert.ok(lock)
   assert.equal(lock!.rate_pct_per_usd, 1)          // 6 points over $6
-  assert.equal(lock!.allowance_usd, 2)              // 2% / 1 %-per-$
+  assert.equal(lock!.allowance_usd, 20)             // 20% / 1 %-per-$ (task fits: $6 <= 0.75 x $20)
+  assert.deepEqual(lock!.tasks.map((t) => t.id), ["ok-task"])
   assert.equal(lock!.version, 1)
   assert.ok(existsSync(join(repo, "results", "t", "suites", "claude-opus-5-5.v1.json")))
 })

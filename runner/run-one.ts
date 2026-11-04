@@ -20,7 +20,7 @@ export async function runOne(t: TaskDef, effort: Effort, ctx: RunCtx): Promise<R
   try {
     const transcriptPath = join(paths(ctx.cfg).transcripts, ctx.date, `${t.id}__${effort}.jsonl`)
     const c = await (ctx.runClaude ?? realRunClaude)({ cwd: dir, prompt, model: ctx.contender.model, effort, maxTurns: t.max_turns, timeoutMs: t.time_limit_min * 60_000, transcriptPath, isolation: ctx.cfg.claude_isolation_args })
-    const m = parseTranscript(c.lines, t, c.wallMs, c.timedOut)
+    const m = parseTranscript(c.lines, t, c.wallMs, c.timedOut, c.stderr)
     // the model has exited: only now may the grader enter the folder
     let grade = { passed: 0, total: 0, details: "not graded (run was limited)", error: undefined as string | undefined }
     let ui: RunResult["ui_checks"] = null, judge: RunResult["judge"] = null

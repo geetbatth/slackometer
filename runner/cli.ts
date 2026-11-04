@@ -28,6 +28,11 @@ async function main(argv: string[]): Promise<number> {
     await resumeIfPaused()
   }
   const mod = await entry.load()
+  if (["run", "calibrate", "run-one", "probe"].includes(cmd!) && !(cmd === "calibrate" && !rest.includes("--yes"))) {
+    const { acquireRunLock } = await import("./lock.ts")
+    const release = acquireRunLock(cmd!)
+    try { return await mod.main(rest) } finally { release() }
+  }
   return mod.main(rest)
 }
 

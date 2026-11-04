@@ -9,7 +9,7 @@ const LIMIT = /usage limit|rate limit|\b429\b|overloaded|limit reached/i
 type Json = Record<string, any>
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
 
-export function parseTranscript(lines: string[], t: Pick<TaskDef, "test_command_hints">, wallMs: number, timedOut: boolean): RunMetrics {
+export function parseTranscript(lines: string[], t: Pick<TaskDef, "test_command_hints">, wallMs: number, timedOut: boolean, stderr = ""): RunMetrics {
   const msgs: Json[] = []
   for (const l of lines) { try { msgs.push(JSON.parse(l)) } catch { /* partial line from a killed process */ } }
   const hints = t.test_command_hints.map((h) => new RegExp(h, "i"))
@@ -32,7 +32,7 @@ export function parseTranscript(lines: string[], t: Pick<TaskDef, "test_command_
   const verified = ran && testIdx.some((i) => i > lastEdit)
 
   const text = String(result?.result ?? "")
-  const limited = (result?.is_error && LIMIT.test(text)) || msgs.some((m) => (m.type === "error" || (m.type === "system" && /retry|error/i.test(String(m.subtype ?? "")))) && LIMIT.test(JSON.stringify(m)))
+  const limited = (!result && LIMIT.test(stderr)) || (result?.is_error && (LIMIT.test(text) || LIMIT.test(stderr))) || msgs.some((m) => (m.type === "error" || (m.type === "system" && /retry|error/i.test(String(m.subtype ?? "")))) && LIMIT.test(JSON.stringify(m)))
   const end: RunMetrics["end"] = limited ? "limited" : timedOut ? "timeout" : result?.subtype === "error_max_turns" ? "turn_limit" : !result || result.is_error ? "errored" : "finished"
   const u = result?.usage ?? {}
 

@@ -32,7 +32,7 @@ export async function buildIndex(cfg: LocalConfig, opts: { now?: () => Date } = 
       for (const f of ls(d).filter((x) => x.name.endsWith(".json"))) {
         const j = readJson<any>(join(d, f.name)); if (!j) continue
         if (f.name.startsWith("day")) days.push(j)
-        else if (j.schema === 1) { runs.push(j); people.set(j.machine, j.person) }
+        else if (j.schema === 1 && j.end !== "limited") { runs.push(j); people.set(j.machine, j.person) } // limited runs are excluded from every score
       }
     }
   }
