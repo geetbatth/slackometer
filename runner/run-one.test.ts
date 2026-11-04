@@ -47,4 +47,6 @@ test("result file written with task_meta and no prompt text", async () => {
   assert.deepEqual(j.task_meta, { title: "ok-task title", language: "JavaScript", kind: "bug fix", difficulty: "easy", ui: false })
   assert.equal(j.schema, 1); assert.equal(j.pass, false); assert.equal(j.ran_tests, false)
   assert.ok(!raw.includes("Fix the add function"), "prompt leaked into the public result")
+  assert.ok(!("grade_details" in j), "hidden-test details must stay local")
+  assert.ok(existsSync(join(cfg.repo_dir, "..", "never")) === false)
 })

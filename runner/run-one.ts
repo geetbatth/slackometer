@@ -42,7 +42,10 @@ export async function runOne(t: TaskDef, effort: Effort, ctx: RunCtx): Promise<R
     }
     const out = resultPath(ctx.cfg, ctx.date, t.id, effort)
     mkdirSync(join(out, ".."), { recursive: true })
-    writeFileSync(out, JSON.stringify({ ...result, grade_details: grade.details.slice(0, 1000), grade_error: grade.error ?? null }, null, 2))
+    writeFileSync(out, JSON.stringify({ ...result, grade_error: grade.error ? "grader error" : null }, null, 2))
+    // grader details name hidden checks: they stay on this machine, next to the transcript
+    mkdirSync(join(transcriptPath, ".."), { recursive: true })
+    writeFileSync(transcriptPath.replace(/\.jsonl$/, ".grade.txt"), [`${grade.passed}/${grade.total}`, grade.error ?? "", grade.details].join("\n"))
     return result
   } finally { await removeRunDir(dir) }
 }
