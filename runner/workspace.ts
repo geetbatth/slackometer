@@ -9,7 +9,9 @@ import type { TaskDef } from "./types.ts"
 export async function makeRunDir(t: TaskDef): Promise<string> {
   const dir = join(tmpdir(), "slackometer", `${t.id}-${randomBytes(4).toString("hex")}`)
   await mkdir(dir, { recursive: true })
-  if (existsSync(join(t.dir, "workspace"))) await cp(join(t.dir, "workspace"), dir, { recursive: true })
+  const SKIP = new Set(["bin", "obj", "node_modules", "__pycache__", ".pytest_cache"])
+  const src = join(t.dir, "workspace")
+  if (existsSync(src)) await cp(src, dir, { recursive: true, filter: (s) => !s.slice(src.length).split(/[\\/]/).some((part) => SKIP.has(part)) })
   return dir
 }
 

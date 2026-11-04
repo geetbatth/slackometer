@@ -15,7 +15,8 @@ export interface Ran { code: number | null; stdout: string; stderr: string; time
 export function run(cmd: string, args: string[], opts: SpawnOptions & { timeoutMs: number; input?: string; onStdout?: (chunk: string) => void }): Promise<Ran> {
   return new Promise((resolve) => {
     let stdout = "", stderr = "", timedOut = false, done = false
-    const child = spawn(cmd, args, { ...opts, detached: process.platform !== "win32", windowsHide: true })
+    const stdio = opts.stdio ?? [opts.input === undefined ? "ignore" : "pipe", "pipe", "pipe"]
+    const child = spawn(cmd, args, { ...opts, stdio, detached: process.platform !== "win32", windowsHide: true })
     const timer = setTimeout(() => { timedOut = true; killTree(child.pid) }, opts.timeoutMs)
     child.stdout?.setEncoding("utf8").on("data", (d: string) => { stdout += d; opts.onStdout?.(d) })
     child.stderr?.setEncoding("utf8").on("data", (d: string) => { stderr += d })
@@ -23,5 +24,7 @@ export function run(cmd: string, args: string[], opts: SpawnOptions & { timeoutM
     const finish = (code: number | null, spawnError?: string) => { if (done) return; done = true; clearTimeout(timer); resolve({ code, stdout, stderr, timedOut, spawnError }) }
     child.on("error", (e) => finish(null, e.message))
     child.on("close", (code) => finish(code))
+    // a grandchild (e.g. a build server) can hold stdout open after the process exits; don't wait for it forever
+    child.on("exit", (code) => setTimeout(() => finish(code), 3000))
   })
 }

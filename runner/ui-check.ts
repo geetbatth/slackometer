@@ -43,7 +43,7 @@ export async function uiCheck(htmlPath: string, checks: { selectors: string[]; s
   const proc = spawn(chrome, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore", windowsHide: true })
   try {
     let port = ""
-    for (let i = 0; i < 100 && !port; i++) { await sleep(100); const f = join(profile, "DevToolsActivePort"); if (existsSync(f)) port = readFileSync(f, "utf8").split("\n")[0].trim() }
+    for (let i = 0; i < 100 && !port; i++) { await sleep(100); const f = join(profile, "DevToolsActivePort"); try { if (existsSync(f)) port = readFileSync(f, "utf8").split("\n")[0].trim() } catch { /* EBUSY while Chrome writes it */ } }
     if (!port) throw new Error("Chrome did not start (no DevToolsActivePort)")
     const ver = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json() as { webSocketDebuggerUrl: string }
     const ws = new WebSocket(ver.webSocketDebuggerUrl)
@@ -77,13 +77,13 @@ export async function uiCheck(htmlPath: string, checks: { selectors: string[]; s
     const found: boolean[] = await evalJson(`${JSON.stringify(checks.selectors)}.map((q) => { try { return !!document.querySelector(q) } catch { return false } })`)
     const states: boolean[] = await evalJson(`${JSON.stringify(checks.states)}.map((q) => { try { return !!document.querySelector(q) } catch { return false } })`)
     const desktop = await shot("desktop.png")
-    const errorsDesktop = errors.length
     await load(390, 844, true)
     // compare with the phone's real width: without a viewport tag Chrome widens the layout to fit the content
     const overflow: boolean = await evalJson(`Math.max(document.documentElement.scrollWidth, window.innerWidth) > 391`)
     const mobile = await shot("mobile.png")
     ws.close()
-    return { renders, console_errors: errorsDesktop, missing: checks.selectors.filter((_, i) => !found[i]), missing_states: checks.states.filter((_, i) => !states[i]), states_present: states.filter(Boolean).length, mobile_overflow: overflow, screenshots: [desktop, mobile], errors: errors.slice(0, errorsDesktop) }
+    const unique = [...new Set(errors)]
+    return { renders, console_errors: unique.length, missing: checks.selectors.filter((_, i) => !found[i]), missing_states: checks.states.filter((_, i) => !states[i]), states_present: states.filter(Boolean).length, mobile_overflow: overflow, screenshots: [desktop, mobile], errors: unique }
   } finally {
     killTree(proc.pid)
     await sleep(200)

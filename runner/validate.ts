@@ -21,7 +21,8 @@ export async function validateTask(t: TaskDef): Promise<Validation> {
   if (miss.length) problems.push(`missing toolchains on this machine: ${miss.join(", ")}`)
   const untouched = await gradeOnce(t, false)
   const reference = await gradeOnce(t, true)
-  if (!untouched.error && untouched.passed === untouched.total) problems.push(`untouched workspace already passes ${untouched.passed}/${untouched.total}`)
+  if (untouched.error) problems.push(`untouched workspace: grader crashed or printed no result (${untouched.error}); graders must print JSON even for broken code`)
+  else if (untouched.passed === untouched.total) problems.push(`untouched workspace already passes ${untouched.passed}/${untouched.total}`)
   if (reference.error) problems.push(`reference: ${reference.error}`)
   else if (reference.passed !== reference.total) problems.push(`reference passes only ${reference.passed}/${reference.total}: ${reference.details.slice(0, 300)}`)
   return { ok: problems.length === 0, untouched, reference, problems }

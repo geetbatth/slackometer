@@ -6,7 +6,7 @@ export async function main(args: string[]): Promise<number> {
   const cfg = loadConfig()
   const which = args[0] ?? "all"
   const tasks = loadTasks(cfg).filter((t) => which === "all" || t.id === which)
-  if (!tasks.length) { console.error(`no task "${which}"`); return 1 }
+  if (!tasks.length) { console.error(which === "all" ? `no tasks found under ${cfg.tasks_dir} for benches: ${cfg.benches.join(", ")}` : `no task "${which}"`); return 1 }
   let bad = 0
   for (const t of tasks) {
     const v = await validateTask(t)

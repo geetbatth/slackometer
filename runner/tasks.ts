@@ -23,7 +23,8 @@ export function loadTasks(cfg: LocalConfig): TaskDef[] {
       const dir = join(tdir, name)
       const file = join(dir, "task.json")
       if (!existsSync(file)) continue
-      const raw = JSON.parse(readFileSync(file, "utf8"))
+      let raw: any
+      try { raw = JSON.parse(readFileSync(file, "utf8")) } catch (e) { throw new Error(`invalid JSON in ${file}: ${(e as Error).message}`) }
       const missing = REQUIRED.filter((k) => raw[k] === undefined)
       if (missing.length) throw new Error(`task ${raw.id ?? name} (${file}) is missing: ${missing.join(", ")}`)
       if (cfg.exclude_tasks.includes(raw.id)) continue
