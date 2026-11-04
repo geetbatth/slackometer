@@ -5,7 +5,7 @@ import { execFileSync, spawn } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { defaults } from "./config.ts"
+import { defaults, paths } from "./config.ts"
 import { fixtureCfg } from "./test-helpers.ts"
 import { buildIndex } from "./index.ts"
 import { runDay } from "./batch.ts"
@@ -35,7 +35,7 @@ function dayRepo(rate = 0.1) {
   const repo = mkdtempSync(join(tmpdir(), "slk-rf-"))
   const cfg: LocalConfig = { ...fixtureCfg(), repo_dir: repo, exclude_tasks: ["crash-task", "sleep-task"] }
   const lock: SuiteLock = { contender: "claude-code/claude-opus-5-5", machine: "t", version: 1, calibrated_at: "2026-11-05", efforts: ["medium", "high", "xhigh"], tasks: [{ id: "ok-task", version: 1, cost_usd: { medium: 5, high: 5, xhigh: 5 } }], allowance_usd: 20, rate_pct_per_usd: rate }
-  put(join(repo, "results/t/suites/claude-opus-5-5.v1.json"), lock)
+  put(join(paths(cfg).locks, "claude-opus-5-5.v1.json"), lock)
   return cfg
 }
 const write = (cfg: LocalConfig, t: TaskDef, e: Effort, over: Partial<RunResult> = {}): RunResult => {
@@ -130,8 +130,8 @@ test("I7 calibration never stores a non-positive delta as clean and refuses a ze
     readUsage: async () => ({ five_hour: 10, seven_day: n++ === 0 ? 80 : 3, seven_day_resets_at: n > 1 ? "reset2" : "reset1", extra_usage_enabled: false }),
     withQuiet: async (_c, fn) => fn(), today: () => "2026-11-05", log: () => {}, sleep: async () => {},
   } as never }), /rate|reset/i)
-  assert.equal(currentRate(join(repo, "results/t/rate.json")), null)
-  assert.ok(!existsSync(join(repo, "results/t/suites/claude-opus-5-5.v1.json")))
+  assert.equal(currentRate(paths(cfg).rate), null)
+  assert.ok(!existsSync(join(paths(cfg).locks, "claude-opus-5-5.v1.json")))
 })
 
 test("I7 a resumed run day's rate sample is not clean", async () => {
@@ -139,7 +139,7 @@ test("I7 a resumed run day's rate sample is not clean", async () => {
   write(cfg, { id: "ok-task" } as TaskDef, "medium")
   await runDay(cfg, { ...deps(), readUsage: (() => { let k = 0; return async () => ({ five_hour: 10, seven_day: 20 + k++, seven_day_resets_at: "r", extra_usage_enabled: false }) })(),
     runOne: async (t, e) => write(cfg, t, e) })
-  const rate = JSON.parse(readFileSync(join(cfg.repo_dir, "results/t/rate.json"), "utf8"))
+  const rate = JSON.parse(readFileSync(paths(cfg).rate, "utf8"))
   assert.equal(rate.samples.at(-1).clean, false)
 })
 

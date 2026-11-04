@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Robot } from "@/components/robot"
-import { CONT, D, F, RAW, type Effort, type Filters, type Status, type Verdict, contendersWithData, daily, effortsOf, fmtDate, fmtDay, runDaysFor, sharedTasks, sum, verdictFor } from "@/lib/data"
+import { CONT, D, F, RAW, type Effort, type Filters, type Status, type Verdict, contendersWithData, daily, effortsOf, fmtDate, fmtDay, runDaysFor, sharedTasks, verdictFor } from "@/lib/data"
 import { EfficiencyPanel, LevelsPanel, RunsPanel, SettingPanel, TasksPanel, TrendPanel, Empty, LEVEL_VAR, SLOT_VAR } from "@/v1/panels"
 import { cn } from "@/lib/utils"
 
@@ -150,8 +150,7 @@ export default function App() {
       <footer className="mt-12 flex items-center gap-3 text-sm text-muted-foreground">
         <Robot name="plunger" className="h-16 w-16" decorative />
         <p>
-          {D.sample ? "Sample data generated " : "Updated "}{new Date(D.generated_at).toLocaleString()}. Costs are API-equivalent, not money charged on a subscription.
-          Usage rate {D.usage_rate.pct_per_usd}% of the weekly limit per $ ({D.usage_rate.source}). Held together with a plunger and Claude Code.
+          {D.sample ? "Sample data generated " : "Updated "}{new Date(D.generated_at).toLocaleString()}. Costs are API-equivalent, not money charged on a subscription. Held together with a plunger and Claude Code.
         </p>
       </footer>
     </div>
@@ -162,22 +161,18 @@ function Meta({ S }: { S: UIState }) {
   const days = runDaysFor(S), last = days[days.length - 1]
   if (!last) return null
   const suite = D.suites.find((x) => x.contender === last.contender && x.machine === last.machine && x.version === last.suite_version)
-  const lastDays = days.filter((d) => d.date === last.date)
-  const usage = sum(lastDays.map((d) => d.usage_pct_of_weekly)) / (S.machine === "everyone" ? lastDays.length : 1)
   return (
     <div className="mb-4 flex flex-wrap gap-x-5 gap-y-1 text-base text-muted-foreground">
       <span>Latest run <b className="text-foreground">{fmtDay(last.date)}</b></span>
       <span>Claude Code <b className="text-foreground">{last.cc_version}</b></span>
       {S.contender !== "compare" && <span><b className="text-foreground">{CONT[S.contender].model}</b></span>}
       {suite && S.machine !== "everyone" && <span>Suite v{suite.version}: <b className="text-foreground">{suite.tasks.length} tasks × {effortsOf(suite.contender).length} levels</b> (calibrated {fmtDate(suite.calibrated_at)})</span>}
-      <span>⏰ Used <b className="text-foreground">{usage.toFixed(1)}%</b> of the weekly limit (target {last.budget_pct}%, ceiling {last.ceiling_pct}%)</span>
     </div>
   )
 }
 
 function Banners({ S, verdicts }: { S: UIState; verdicts: (Verdict | null)[] }) {
   const days = runDaysFor(S), last = days[days.length - 1]
-  const recent = days.filter((d) => d.status === "complete").slice(-2)
   return (
     <div className="flex flex-col gap-3">
       {D.paused && (
@@ -207,12 +202,6 @@ function Banners({ S, verdicts }: { S: UIState; verdicts: (Verdict | null)[] }) 
         <Card className="doodle flex-row items-center gap-4 bg-warn-wash px-4 py-3">
           <Robot name="baseline" className="h-14 w-12" decorative />
           <div><b>Latest run day is incomplete.</b> {last.incomplete_reason}. It's left out of every chart and verdict.</div>
-        </Card>
-      )}
-      {recent.length === 2 && recent.every((d) => d.usage_pct_of_weekly > d.budget_pct) && (
-        <Card className="doodle flex-row items-center gap-4 bg-warn-wash px-4 py-3">
-          <Robot name="budget" className="h-16 w-12" decorative />
-          <div><b>Over budget two runs in a row.</b> Time to re-calibrate the suite.</div>
         </Card>
       )}
     </div>

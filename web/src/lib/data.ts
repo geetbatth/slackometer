@@ -8,7 +8,7 @@ export interface Contender { id: string; tool: string; model: string; label: str
 export interface Machine { id: string; person: string; os: string }
 export interface Suite { contender: string; machine: string; version: number; calibrated_at: string; tasks: string[] }
 export interface Bench { id: string; name: string; owner: string; description: string }
-export interface RunDay { date: string; machine: string; contender: string; suite_version: number; cc_version: string; status: "complete" | "incomplete"; incomplete_reason: string | null; cost_usd: number; usage_pct_of_weekly: number; budget_pct: number; ceiling_pct: number }
+export interface RunDay { date: string; machine: string; contender: string; suite_version: number; cc_version: string; status: "complete" | "incomplete"; incomplete_reason: string | null; cost_usd: number }
 export interface Run {
   date: string; machine: string; contender: string; effort: Effort; task: string; bench: string; task_version: number; suite_version: number; cc_version: string
   end: string; pass: boolean; score: number; tests_passed: number; tests_total: number
@@ -21,7 +21,7 @@ interface Raw {
   sample?: boolean; generated_at: string; benches: Bench[]; tasks: Task[]; contenders: Contender[]; machines: Machine[]; suites: Suite[]
   events: { date: string; type: string; label: string }[]; run_days: RunDay[]; runs?: Run[]
   runs_compact?: { cols: string[]; intern: string[]; strings: string[]; rows: unknown[][] }
-  paused: { since: string; items: string[] } | null; usage_rate: { pct_per_usd: number; source: string }
+  paused: { since: string; items: string[] } | null
 }
 
 declare global { interface Window { SLACKOMETER_DATA?: Raw } }

@@ -9,6 +9,7 @@ export interface LocalConfig {
   budget: { percent_of_weekly_per_run: number; ceiling_percent_of_weekly_per_run: number; plan_to: number; guard_percent: number }
   cutoff: string; judge: { model: string; effort: Effort }
   quiet: { scheduled_tasks: string[]; close_apps: string[]; manual: string[] }
+  home_dir?: string                  // local-only data (transcripts, usage, locks); default ~/.slackometer
   claude_isolation_args?: string[]   // set by `probe`; default --bare --strict-mcp-config
 }
 export interface TaskDef {

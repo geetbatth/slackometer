@@ -66,7 +66,10 @@ export function loadConfig(path = join(REPO_DIR, "local.json")): LocalConfig {
 export const contenderId = (c: Contender) => "claude-code/" + c.model
 
 export function paths(cfg: LocalConfig) {
-  const home = join(homedir(), ".slackometer")
+  const home = cfg.home_dir ?? join(homedir(), ".slackometer")
   const results = join(cfg.repo_dir, "results")
-  return { results, machineResults: join(results, cfg.machine), transcripts: join(home, "transcripts"), state: join(home, "state") }
+  const state = join(home, "state")
+  // usage, rate and budget numbers describe the person's subscription: they live here, never in results/
+  return { results, machineResults: join(results, cfg.machine), transcripts: join(home, "transcripts"), state,
+    rate: join(state, `rate-${cfg.machine}.json`), locks: join(state, "suites", cfg.machine), days: join(state, "days", cfg.machine) }
 }

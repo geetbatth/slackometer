@@ -167,7 +167,7 @@ for (const date of days) {
     runDays.push({
       date, machine: machine.id, contender, suite_version: suite.version, cc_version: ccVersionFor(date),
       status: incomplete ? "incomplete" : "complete", incomplete_reason: incomplete ? "PC was off overnight; suite not finished by 23:59" : null,
-      cost_usd: r2(dayCost), usage_pct_of_weekly: r2(dayCost / 18.5), budget_pct: 2, ceiling_pct: 3,
+      cost_usd: r2(dayCost),
     });
   }
 }
@@ -193,7 +193,6 @@ const data = {
   benches, tasks, contenders, machines, suites, events, run_days: runDays,
   runs_compact: { cols, intern: [...internCols], strings, rows },
   paused: null,
-  usage_rate: { pct_per_usd: r2(1 / 18.5), source: "calibration 2026-09-01, refined over 18 clean run days" },
 };
 
 const out = join(root, "web", "public", "data", "runs.js");

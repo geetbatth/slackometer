@@ -61,12 +61,14 @@ export async function runDay(cfg: LocalConfig, opts: Partial<DayDeps> = {}): Pro
   for (const contender of cfg.contenders) {
     const lock = latestLock(cfg, contender)
     if (!lock) { d.log(`${contenderId(contender)}: no locked suite yet. Run calibrate first (see CALIBRATE.md).`); continue }
-    const rate = lock.rate_pct_per_usd || currentRate(join(paths(cfg).machineResults, "rate.json")) || 0
+    const rate = lock.rate_pct_per_usd || currentRate(paths(cfg).rate) || 0
     const ceiling = cfg.budget.ceiling_percent_of_weekly_per_run
     const dir = join(paths(cfg).machineResults, d.date)
-    const dayFile = join(dir, days.length ? `day.${contender.model}.json` : "day.json")
+    const dayName = days.length ? `day.${contender.model}.json` : "day.json"
+    const dayFile = join(dir, dayName)
+    const localDayFile = join(paths(cfg).days, `${d.date}.${dayName}`)
     // usage before the day: kept from an earlier start of this same day, so a resumed day measures the whole day
-    const earlier = existsSync(dayFile) ? (JSON.parse(readFileSync(dayFile, "utf8")) as DayRecord) : null
+    const earlier = existsSync(localDayFile) ? (JSON.parse(readFileSync(localDayFile, "utf8")) as DayRecord) : null
     const beforeNow = await d.readUsage().catch(() => null)
     const usageBefore = earlier?.usage_before ?? beforeNow?.seven_day ?? null
     const record = (patch: Partial<DayRecord>): DayRecord => {
@@ -75,7 +77,10 @@ export async function runDay(cfg: LocalConfig, opts: Partial<DayDeps> = {}): Pro
         status: "incomplete", incomplete_reason: "in progress", cost_usd: 0, usage_pct_of_weekly: 0,
         budget_pct: cfg.budget.percent_of_weekly_per_run, ceiling_pct: ceiling, usage_before: usageBefore, usage_after: null, ...patch,
       }
-      mkdirSync(dir, { recursive: true }); writeFileSync(dayFile, JSON.stringify(day, null, 2)); return day
+      mkdirSync(paths(cfg).days, { recursive: true }); writeFileSync(localDayFile, JSON.stringify(day, null, 2))
+      const { usage_pct_of_weekly, budget_pct, ceiling_pct, usage_before, usage_after, ...pub } = day // usage numbers stay local
+      void usage_pct_of_weekly; void budget_pct; void ceiling_pct; void usage_before; void usage_after
+      mkdirSync(dir, { recursive: true }); writeFileSync(dayFile, JSON.stringify(pub, null, 2)); return day
     }
     record({}) // an interrupted day must never look complete
 
@@ -126,7 +131,7 @@ export async function runDay(cfg: LocalConfig, opts: Partial<DayDeps> = {}): Pro
     if (usageBefore != null && after && spentUsd > 0) {
       const moved = after.seven_day - usageBefore
       const sameWindow = !beforeNow || beforeNow.seven_day_resets_at === after.seven_day_resets_at
-      addSample(join(paths(cfg).machineResults, "rate.json"), { date: d.date, d_pct: moved, usd: spentUsd, clean: !reason && !resumed && sameWindow && moved > 0 && moved <= pct * 2 + 1 })
+      addSample(paths(cfg).rate, { date: d.date, d_pct: moved, usd: spentUsd, clean: !reason && !resumed && sameWindow && moved > 0 && moved <= pct * 2 + 1 })
     }
     d.log(`${contenderId(contender)}: ${day.status}${reason ? ` (${reason})` : ""}, $${day.cost_usd} ≈ ${pct}% of the weekly limit`)
     days.push(day)

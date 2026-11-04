@@ -71,12 +71,12 @@ export async function buildIndex(cfg: LocalConfig, opts: { now?: () => Date } = 
   }))
   const pausedFile = join(paths(cfg).state, "paused.json")
   const paused = existsSync(pausedFile) ? { since: readJson<any>(pausedFile)?.since ?? "", items: [] } : null
-  const rate = readJson<{ pct_per_usd: number | null; samples: unknown[] }>(join(paths(cfg).machineResults, "rate.json"))
   const data = {
     sample: false, generated_at: now.toISOString(), benches, tasks: [...tasks.values()], contenders, machines,
     suites: suites.map((s) => ({ contender: s.contender, machine: s.machine, version: s.version, calibrated_at: s.calibrated_at, tasks: s.tasks.map((t) => t.id) })),
-    events, run_days: days, runs_compact: { cols: COLS, intern: [...INTERN], strings, rows }, paused,
-    usage_rate: { pct_per_usd: rate?.pct_per_usd ?? 0, source: rate?.pct_per_usd ? `${cfg.machine}: ${rate.samples.length} sample(s)` : "not calibrated yet" },
+    // usage/budget fields are stripped even from older day files: they describe the person's subscription
+    events, run_days: days.map(({ usage_pct_of_weekly, budget_pct, ceiling_pct, usage_before, usage_after, ...pub }: any) => (void [usage_pct_of_weekly, budget_pct, ceiling_pct, usage_before, usage_after], pub)),
+    runs_compact: { cols: COLS, intern: [...INTERN], strings, rows }, paused,
   }
   const out = join(cfg.repo_dir, "site", "data", "runs.js")
   mkdirSync(join(out, ".."), { recursive: true })

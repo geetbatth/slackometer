@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fixtureCfg } from "./test-helpers.ts"
 import { runDay } from "./batch.ts"
+import { paths } from "./config.ts"
 import { resultPath } from "./run-one.ts"
 import type { Effort, LocalConfig, RunResult, SuiteLock, TaskDef } from "./types.ts"
 
@@ -13,7 +14,7 @@ function setup(rate = 0.1) {
   const repo = mkdtempSync(join(tmpdir(), "slk-day-"))
   const cfg: LocalConfig = { ...fixtureCfg(), repo_dir: repo, exclude_tasks: ["crash-task", "sleep-task"] }
   const lock: SuiteLock = { contender: "claude-code/claude-opus-5-5", machine: "t", version: 2, calibrated_at: "2026-11-05", efforts: ["medium", "high", "xhigh"], tasks: [{ id: "ok-task", version: 1, cost_usd: { medium: 1, high: 1, xhigh: 1 } }], allowance_usd: 20, rate_pct_per_usd: rate }
-  const lp = join(repo, "results", "t", "suites", "claude-opus-5-5.v2.json")
+  const lp = join(paths(cfg).locks, "claude-opus-5-5.v2.json")
   mkdirSync(dirname(lp), { recursive: true }); writeFileSync(lp, JSON.stringify(lock))
   return cfg
 }

@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from "react"
 import { Moon, Sun, ArrowUpRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Robot, type RobotName } from "@/components/robot"
 import { Pick, initialState, store, useTheme, type UIState } from "@/v1/App"
 import { EfficiencyPanel, LevelsPanel, RunsPanel, SettingPanel, TasksPanel, LEVEL_VAR, SLOT_VAR, LinesExport as LinesProxy } from "@/v1/panels"
-import { CONT, D, F, M, RAW, RUNS, TASK, agg, contendersWithData, daily, effortsOf, filterRuns, fmtDate, fmtDay, groupBy, runDaysFor, rangeDates, sharedTasks, sum, uniq, verdictFor, type Effort, type Verdict, type Run } from "@/lib/data"
+import { CONT, D, F, M, RAW, RUNS, TASK, agg, contendersWithData, daily, effortsOf, filterRuns, fmtDate, fmtDay, groupBy, runDaysFor, rangeDates, sharedTasks, uniq, verdictFor, type Effort, type Verdict, type Run } from "@/lib/data"
 import { Gauge, Rough, Spark, SectionTitle, Squiggle, zoneOf, type Needle } from "@/v2/parts"
 import { findMoments, type Moment } from "@/v2/moments"
 import { cn } from "@/lib/utils"
@@ -202,16 +201,10 @@ export default function AppV2() {
           <TrendsV2 S={S} verdicts={verdicts} cids={cids} shared={shared} />
         </section>
 
-        {/* ---------------- cheat sheet + budget ---------------- */}
-        <section className="mt-20 grid gap-10 lg:grid-cols-[1.3fr_1fr]">
-          <div>
-            <SectionTitle id="cheat" kicker="which level for which job, from everyone's runs">Cheat sheet</SectionTitle>
-            <CheatSheet S={S} onMore={() => { set({ tab: "setting" }); document.getElementById("details")?.scrollIntoView({ behavior: "smooth" }) }} />
-          </div>
-          <div>
-            <SectionTitle id="budget" kicker="what the bench costs you">Budget</SectionTitle>
-            <Budget S={S} />
-          </div>
+        {/* ---------------- cheat sheet ---------------- */}
+        <section className="mt-20 max-w-3xl">
+          <SectionTitle id="cheat" kicker="which level for which job, from everyone's runs">Cheat sheet</SectionTitle>
+          <CheatSheet S={S} onMore={() => { set({ tab: "setting" }); document.getElementById("details")?.scrollIntoView({ behavior: "smooth" }) }} />
         </section>
 
         {/* ---------------- details ---------------- */}
@@ -331,33 +324,6 @@ function CheatSheet({ S, onMore }: { S: UIState; onMore: () => void }) {
       <Robot name="hustle" className="absolute -bottom-10 -right-4 hidden h-28 w-24 sm:flex" decorative />
       <button type="button" onClick={onMore} className="mt-4 text-lg underline">Show the full numbers</button>
     </div>
-  )
-}
-
-function Budget({ S }: { S: UIState }) {
-  const days = runDaysFor(S).filter((d) => d.status === "complete")
-  const last = days[days.length - 1]
-  if (!last) return <p className="text-muted-foreground">No runs yet.</p>
-  const lastDays = days.filter((d) => d.date === last.date)
-  const used = sum(lastDays.map((d) => d.usage_pct_of_weekly)) / lastDays.length
-  const recent = rangeDates(uniq(days.map((d) => d.date)), 8)
-  const avg = sum(days.filter((d) => recent.includes(d.date)).map((d) => d.usage_pct_of_weekly)) / days.filter((d) => recent.includes(d.date)).length
-  return (
-    <Rough seed={9} className="bg-card px-5 pb-5 pt-4 -rotate-[0.6deg]">
-      <div className="flex items-center gap-4">
-        <Robot name="piggy" className="h-32 w-28" />
-        <div>
-          <div className="font-heading text-6xl leading-none"><span className="hl">{used.toFixed(1)}%</span></div>
-          <div className="text-lg">of your weekly Claude limit, last run ({fmtDate(last.date)})</div>
-        </div>
-      </div>
-      <div className="mt-4 text-base text-muted-foreground">Target {last.budget_pct}% · ceiling {last.ceiling_pct}%</div>
-      <div className="relative mt-1">
-        <Progress value={(used / last.ceiling_pct) * 100} className="h-4 border-2 border-foreground/70" aria-label={`Used ${used.toFixed(1)}% of a ${last.ceiling_pct}% ceiling`} />
-        <span className="absolute -top-1 h-6 w-0.5 bg-foreground" style={{ left: `${(last.budget_pct / last.ceiling_pct) * 100}%` }} aria-hidden="true" />
-      </div>
-      <p className="mt-4 text-lg">Average over the last {recent.length} runs: <b>{avg.toFixed(1)}%</b> per run, so about <b>{(avg * 2).toFixed(1)}%</b> a week (Mon + Wed).</p>
-    </Rough>
   )
 }
 

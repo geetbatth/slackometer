@@ -10,7 +10,7 @@ import { Robot, type RobotName } from "@/components/robot"
 import { Pick, type UIState } from "@/v1/App"
 import { cn } from "@/lib/utils"
 import {
-  CONT, D, F, LEVELS, M, RUNS, TASK, agg, contendersWithData, daily, effortsOf, filterRuns, fmtDate, fmtDay, groupBy, mean,
+  CONT, D, F, LEVELS, M, RUNS, TASK, agg, contendersWithData, daily, effortsOf, filterRuns, fmtDate, fmtDay, groupBy,
   rangeDates, runDaysFor, sharedTasks, uniq, type Effort, type MetricKey, type Run, type Verdict,
 } from "@/lib/data"
 
@@ -191,17 +191,12 @@ export function EfficiencyPanel({ S }: { S: UIState }) {
   const A = Object.fromEntries(efforts.map((e) => [e, Object.fromEntries(diffs.map((d) => [d, agg(runs.filter((r) => r.effort === e && TASK[r.task].difficulty === d))]))]))
   const series = efforts.map((e) => ({ key: e, label: e, color: LEVEL_VAR[e] }))
   const bars = (k: "cost" | "costPerPass" | "outTok") => diffs.map((d) => Object.fromEntries([["group", d], ...efforts.map((e) => [e, A[e][d][k]])]))
-  const usage = Object.entries(groupBy(days.filter((d) => d.status === "complete" && keep.has(d.date)), (d) => d.date)).sort().map(([date, ds]) => ({ date, usage: mean(ds.map((x) => x.usage_pct_of_weekly)) }))
-  const last = days[days.length - 1]
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(460px,100%),1fr))] gap-5">
         <Panel title="Cost per task" note="By difficulty, over the selected range (API-equivalent $)"><Legend items={series} /><Columns data={bars("cost")} series={series} fmt={F.usd} /></Panel>
         <Panel title="Cost per correct answer" note="What a passing result actually costs. Lower is better."><Legend items={series} /><Columns data={bars("costPerPass")} series={series} fmt={F.usd} /></Panel>
         <Panel title="Output tokens per task" note="How much it wrote, by difficulty"><Legend items={series} /><Columns data={bars("outTok")} series={series} fmt={F.k} /></Panel>
-        <Panel title="Budget per run day" note="% of the weekly Claude limit the bench used" robot="budget">
-          <Lines data={usage} series={[{ key: "usage", label: "Bench usage", color: "var(--s1)" }]} fmt={(v) => v.toFixed(1) + "%"} domain={[0, Math.max(3.5, ...usage.map((u) => u.usage + 0.5))]} refs={last ? [{ y: last.budget_pct, label: `target ${last.budget_pct}%` }, { y: last.ceiling_pct, label: `ceiling ${last.ceiling_pct}%` }] : []} />
-        </Panel>
       </div>
       <Panel title="The receipts" note="Everything above, as numbers">
         <div className="overflow-x-auto">

@@ -37,7 +37,8 @@ export function selectSuite(costs: Map<string, { task: TaskDef; usd: Record<Effo
   return picked
 }
 
-export const suitesDir = (cfg: LocalConfig) => join(paths(cfg).machineResults, "suites")
+export const suitesDir = (cfg: LocalConfig) => paths(cfg).locks // full locks (with rate and $ allowance) stay local
+export const publicSuitesDir = (cfg: LocalConfig) => join(paths(cfg).machineResults, "suites")
 export const slug = (c: Contender) => c.model.replace(/[^a-z0-9.-]/gi, "_")
 
 export function latestLock(cfg: LocalConfig, c: Contender): SuiteLock | null {
@@ -75,7 +76,7 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
   })
   const efforts = contender.efforts
   const estUsd = tasks.length * efforts.reduce((a, e) => a + DEFAULT_RUN_COST[e], 0)
-  const rateFile = join(paths(cfg).machineResults, "rate.json")
+  const rateFile = paths(cfg).rate
   const known = currentRate(rateFile)
   d.log(`Calibration for ${contenderId(contender)} on ${cfg.machine}: ${tasks.length} tasks x ${efforts.length} levels = ${tasks.length * efforts.length} runs.`)
   d.log(`Rough estimate: ~$${estUsd.toFixed(0)} API-equivalent${known ? ` (~${(estUsd * known).toFixed(1)}% of your weekly limit)` : ", likely several % of your weekly limit"}. One-off; it can exceed the daily budget.`)
@@ -88,13 +89,13 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
   const version = (prev?.version ?? 0) + 1
   const date = d.today()
   const calDir = join(paths(cfg).machineResults, `calibration-v${version}`)
-  const stateFile = join(calDir, "state.json")
+  const stateFile = join(paths(cfg).state, `calibration-${cfg.machine}-v${version}.json`)
   const results: RunResult[] = []
   const usage: { before: Usage | null; after: Usage | null } = { before: null, after: null }
   await d.withQuiet(cfg, async () => {
     // an unfinished calibration of this version is resumed, measuring from its original start
     usage.before = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")).usage_before : await d.readUsage()
-    mkdirSync(calDir, { recursive: true })
+    mkdirSync(calDir, { recursive: true }); mkdirSync(paths(cfg).state, { recursive: true })
     writeFileSync(stateFile, JSON.stringify({ started: date, usage_before: usage.before }, null, 2))
     for (const t of tasks) for (const e of efforts) {
       const done = join(calDir, `${t.id}__${e}.json`)
@@ -144,6 +145,9 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
   }
   mkdirSync(suitesDir(cfg), { recursive: true })
   writeFileSync(join(suitesDir(cfg), `${slug(contender)}.v${version}.json`), JSON.stringify(lock, null, 2))
+  // what the site needs to know about the suite, without any usage or money numbers
+  mkdirSync(publicSuitesDir(cfg), { recursive: true })
+  writeFileSync(join(publicSuitesDir(cfg), `${slug(contender)}.v${version}.json`), JSON.stringify({ contender: lock.contender, machine: lock.machine, version, calibrated_at: date, efforts, tasks: lock.tasks.map((t) => ({ id: t.id, version: t.version })) }, null, 2))
   const planned = ids.reduce((a, id) => a + Object.values(costs.get(id)!.usd).reduce((x, y) => x + y, 0), 0)
   d.log(`Locked suite v${version}: ${ids.length} tasks x ${efforts.length} levels, planned ~$${planned.toFixed(2)} of a $${allowance.toFixed(2)} run-day allowance.`)
   return lock

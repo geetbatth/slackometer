@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { selectSuite, calibrate } from "./calibrate.ts"
 import { fixtureCfg } from "./test-helpers.ts"
+import { paths } from "./config.ts"
 import type { Effort, TaskDef } from "./types.ts"
 
 const T = (id: string, language: string, difficulty: TaskDef["difficulty"]) => ({ id, language, difficulty } as TaskDef)
@@ -64,5 +65,6 @@ test("calibrate with --yes runs every task x level, derives the rate and writes 
   assert.equal(lock!.allowance_usd, 20)             // 20% / 1 %-per-$ (task fits: $6 <= 0.75 x $20)
   assert.deepEqual(lock!.tasks.map((t) => t.id), ["ok-task"])
   assert.equal(lock!.version, 1)
-  assert.ok(existsSync(join(repo, "results", "t", "suites", "claude-opus-5-5.v1.json")))
+  assert.ok(existsSync(join(paths(cfg).locks, "claude-opus-5-5.v1.json")))
+  assert.ok(existsSync(join(repo, "results", "t", "suites", "claude-opus-5-5.v1.json"))) // public summary
 })

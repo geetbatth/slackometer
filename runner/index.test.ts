@@ -52,7 +52,7 @@ test("round-trips into the site's expand(): booleans and ui_checks survive; cali
   assert.deepEqual(runs.find((x) => x.task === "ui-b")!.ui_checks, { builds: true, renders: true, console_errors: 2, states_present: 1 })
   assert.ok(d.tasks.some((t: any) => t.id === "ui-b" && t.ui === true && t.title === "UI B"))
   assert.deepEqual(d.suites[0].tasks, ["ts-a"])
-  assert.equal(d.run_days.length, 1); assert.equal(d.usage_rate.pct_per_usd, 0.1)
+  assert.equal(d.run_days.length, 1); assert.equal(d.usage_rate, undefined)
 })
 
 test("CC version change becomes an event; calibration is an event too", async () => {

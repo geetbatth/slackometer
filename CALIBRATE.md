@@ -19,6 +19,6 @@ It uses real usage, possibly several % of your weekly limit, so start it **when 
    ```
    The runner writes a pause list before it touches anything, waits a few minutes to check usage has stopped moving, runs everything, then **always** restores what it paused, even if it crashes. If anything is left paused, the next runner command restores it, or run `node runner/cli.ts quiet resume`.
 
-3. **Afterwards:** resume anything you paused by hand (`quiet.manual`). Check `results/<machine>/suites/` for the new lock. `node runner/cli.ts usage` shows the learned rate and what one run day costs.
+3. **Afterwards:** resume anything you paused by hand (`quiet.manual`). The suite summary (which tasks, which levels) is in `results/<machine>/suites/`. Your usage numbers (the learned rate, the dollar allowance, per-day usage) stay on your machine in `~/.slackometer/state/` and never go to GitHub. `node runner/cli.ts usage` shows them.
 
 If calibration stops early (usage reached 90%, the PC slept, and so on), finished runs are kept. Run `calibrate --yes` again later to start a fresh calibration.
