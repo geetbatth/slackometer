@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Slackometer command line. Each command lives in its own module, loaded on demand.
 const COMMANDS: Record<string, { help: string; load: () => Promise<{ main: (args: string[]) => Promise<number> }> }> = {
-  setup: { help: "setup --check            check toolchains, Claude login, tasks repo", load: () => import("./setup.ts") },
+  setup: { help: "setup --check            check toolchains, Claude login, tasks repo (read-only)", load: () => import("./setup.ts") },
   probe: { help: "probe                    test Claude Code isolation flags (tiny Haiku calls)", load: () => import("./probe.ts") },
   validate: { help: "validate [task|all]      prove each grader fails on the starter and passes on the reference", load: () => import("./validate-cmd.ts") },
   "ui-grade": { help: "ui-grade <checks.json>   (used by UI task graders)", load: () => import("./ui-grade.ts") },
