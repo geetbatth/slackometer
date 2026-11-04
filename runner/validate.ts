@@ -10,7 +10,7 @@ async function gradeOnce(t: TaskDef, reference: boolean): Promise<GradeResult> {
   try {
     if (reference) await applyReference(t, dir)
     await injectGrader(t, dir)
-    return await runGrader(t, dir)
+    return await runGrader(t, dir, 300_000, { SLACKOMETER_NO_JUDGE: "1" }) // validation never spends usage
   } finally { await removeRunDir(dir) }
 }
 

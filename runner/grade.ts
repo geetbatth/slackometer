@@ -23,8 +23,8 @@ export function parseGradeOutput(stdout: string): GradeResult | null {
 }
 
 /** Run a task's grader in the run folder. Never throws: any failure is a graded fail with a reason. */
-export async function runGrader(t: TaskDef, dir: string, timeoutMs = 300_000): Promise<GradeResult> {
-  const r = await run(expandGrade(t.grade), [], { cwd: dir, shell: true, timeoutMs, env: { ...process.env, SLACKOMETER_CLI: CLI_PATH } })
+export async function runGrader(t: TaskDef, dir: string, timeoutMs = 300_000, env: Record<string, string> = {}): Promise<GradeResult> {
+  const r = await run(expandGrade(t.grade), [], { cwd: dir, shell: true, timeoutMs, env: { ...process.env, SLACKOMETER_CLI: CLI_PATH, ...env } })
   const tail = (r.stderr || r.stdout).slice(-2000)
   if (r.timedOut) return { passed: 0, total: 1, details: tail, error: `grader timeout after ${timeoutMs} ms` }
   if (r.spawnError) return { passed: 0, total: 1, details: tail, error: `grader could not start: ${r.spawnError}` }
