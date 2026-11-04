@@ -1,0 +1,9 @@
+﻿.superpowers/
+results/**/transcripts/
+node_modules/
+
+web/node_modules/
+web/dist/
+local.json
+node_modules/
+.superpowers/
