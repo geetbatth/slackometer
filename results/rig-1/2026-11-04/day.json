@@ -1,0 +1,10 @@
+{
+  "date": "2026-11-04",
+  "machine": "rig-1",
+  "contender": "claude-code/claude-opus-5-5",
+  "suite_version": 1,
+  "cc_version": "2.1.316",
+  "status": "complete",
+  "incomplete_reason": null,
+  "cost_usd": 16.94
+}
