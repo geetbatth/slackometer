@@ -6,8 +6,9 @@ import { run } from "./proc.ts"
 import { loadTasks } from "./tasks.ts"
 import type { LocalConfig } from "./types.ts"
 
+let gitEnv: NodeJS.ProcessEnv | undefined
 async function git(cwd: string, ...args: string[]) {
-  const r = await run("git", args, { cwd, shell: false, timeoutMs: 120_000 })
+  const r = await run("git", args, { cwd, shell: false, timeoutMs: 120_000, env: gitEnv })
   return { ok: r.code === 0, out: r.stdout + r.stderr }
 }
 
@@ -25,6 +26,12 @@ function excludePrivate(cfg: LocalConfig) {
 async function hasUpstream(cwd: string) { return (await git(cwd, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")).ok }
 
 export async function publish(cfg: LocalConfig, message: string, rebuild: () => Promise<unknown> = async () => {}): Promise<void> {
+  // with several gh accounts logged in, git's gh helper uses the active one; push as the configured account instead
+  gitEnv = undefined
+  if (cfg.github_user) {
+    const t = await run("gh", ["auth", "token", "-u", cfg.github_user], { shell: false, timeoutMs: 30_000 })
+    if (t.code === 0 && t.stdout.trim()) gitEnv = { ...process.env, GH_TOKEN: t.stdout.trim() }
+  }
   const cwd = cfg.repo_dir
   excludePrivate(cfg)
   const upstream = await hasUpstream(cwd)

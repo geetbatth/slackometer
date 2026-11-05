@@ -1,6 +1,7 @@
 {
   "machine": "your-machine",
   "person": "your-name",
+  "github_user": "your-github-login",
   "tasks_dir": "../slackometer-tasks",
   "benches": [
     "core"

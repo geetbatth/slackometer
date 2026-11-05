@@ -9,6 +9,7 @@ export interface LocalConfig {
   budget: { percent_of_weekly_per_run: number; ceiling_percent_of_weekly_per_run: number; plan_to: number; guard_percent: number }
   cutoff: string; judge: { model: string; effort: Effort }
   quiet: { scheduled_tasks: string[]; close_apps: string[]; manual: string[] }
+  github_user?: string               // push results as this gh account (when gh has several logged in)
   home_dir?: string                  // local-only data (transcripts, usage, locks); default ~/.slackometer
   claude_isolation_args?: string[]   // extra flags; default --strict-mcp-config (isolation itself comes from isolate.ts)
 }
