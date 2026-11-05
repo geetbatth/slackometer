@@ -85,3 +85,16 @@ test("effort levels keep their natural order (medium, high, xhigh), not alphabet
   await buildIndex(cfgFor(repo), { now: () => new Date("2026-11-05T00:00:00Z") })
   assert.deepEqual(load(repo).contenders[0].efforts, ["medium", "high", "xhigh"])
 })
+
+test("the site data never names a machine or a person", async () => {
+  const repo = repoWithResults()
+  await buildIndex(cfgFor(repo), { now: () => new Date("2026-11-05T00:00:00Z") })
+  const raw = readFileSync(join(repo, "site", "data", "runs.js"), "utf8")
+  assert.ok(!/"m1"|\bp1\b|, m1\)/.test(raw), "machine or person id leaked into runs.js")
+  const d = load(repo)
+  assert.deepEqual(d.machines.map((m: any) => m.id), ["Rig 1"])
+  assert.ok(expand(d.runs_compact).every((r) => r.machine === "Rig 1"))
+  assert.equal(d.suites[0].machine, "Rig 1")
+  assert.equal(d.run_days[0].machine, "Rig 1")
+  assert.ok(d.events.some((e: any) => /Rig 1/.test(e.label)))
+})

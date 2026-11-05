@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Moon, Sun, ArrowUpRight } from "lucide-react"
+import { Moon, Sun } from "lucide-react"
 import { GithubButton, GithubMark, REPO_URL } from "@/components/github-link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -234,7 +234,6 @@ export default function AppV2() {
             {D.sample ? "Sample data generated " : "Updated "}{new Date(D.generated_at).toLocaleString()}. Costs are API-equivalent, not money charged on a subscription. Held together with a plunger and Claude Code.
           </p>
           <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 underline"><GithubMark /> Run it yourself / add tasks</a>
-          <a href="?v=1" className="inline-flex items-center gap-1 underline">See the v1 design <ArrowUpRight className="size-4" /></a>
         </footer>
       </main>
 

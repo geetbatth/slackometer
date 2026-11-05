@@ -22,7 +22,6 @@ export async function buildIndex(cfg: LocalConfig, opts: { now?: () => Date } = 
   const now = (opts.now ?? (() => new Date()))()
   const root = paths(cfg).results
   const runs: RunResult[] = [], days: DayRecord[] = [], suites: SuiteLock[] = []
-  const people = new Map<string, string>()
   for (const m of ls(root).filter((e) => e.isDirectory())) {
     const mdir = join(root, m.name)
     for (const e of ls(mdir).filter((x) => x.isDirectory())) {
@@ -32,11 +31,19 @@ export async function buildIndex(cfg: LocalConfig, opts: { now?: () => Date } = 
       for (const f of ls(d).filter((x) => x.name.endsWith(".json"))) {
         const j = readJson<any>(join(d, f.name)); if (!j) continue
         if (f.name.startsWith("day")) days.push(j)
-        else if (j.schema === 1 && j.end !== "limited") { runs.push(j); people.set(j.machine, j.person) } // limited runs are excluded from every score
+        else if (j.schema === 1 && j.end !== "limited") runs.push(j) // limited runs are excluded from every score
       }
     }
   }
   runs.sort((a, b) => a.date.localeCompare(b.date) || a.machine.localeCompare(b.machine) || a.task.localeCompare(b.task) || a.effort.localeCompare(b.effort))
+
+  // the public site never shows machine or person names: machines become "Rig 1", "Rig 2"... in order of their first run
+  const rig = new Map<string, string>()
+  for (const r of runs) if (!rig.has(r.machine)) rig.set(r.machine, `Rig ${rig.size + 1}`)
+  const pub = (m: string) => { if (!rig.has(m)) rig.set(m, `Rig ${rig.size + 1}`); return rig.get(m)! }
+  for (const r of runs) { r.machine = pub(r.machine); r.person = "" }
+  for (const s of suites) s.machine = pub(s.machine)
+  for (const d of days as any[]) { if (d.machine) d.machine = pub(d.machine); delete d.person }
 
   // private (metrics-only) benches: hide titles
   let privateIds = new Set<string>()
@@ -53,7 +60,7 @@ export async function buildIndex(cfg: LocalConfig, opts: { now?: () => Date } = 
     const efforts = [...new Set(mine.map((r) => r.effort))].sort((a, b) => order.indexOf(a) - order.indexOf(b))
     return { id, tool: "claude-code", model, label: modelLabel(model), efforts, retired: !mine.some((r) => new Date(r.date + "T12:00:00Z").getTime() >= cutoff) }
   })
-  const machines = [...people].map(([id, person]) => ({ id, person, os: "" }))
+  const machines = [...new Set(runs.map((r) => r.machine))].map((id) => ({ id, person: "", os: "" }))
   const events: { date: string; type: string; label: string }[] = []
   let lastCc = ""
   for (const r of runs) { if (r.cc_version && r.cc_version !== lastCc) { if (lastCc) events.push({ date: r.date, type: "cc_version", label: `Claude Code ${r.cc_version}` }); lastCc = r.cc_version } }

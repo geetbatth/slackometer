@@ -117,7 +117,7 @@ export default function App() {
           ...(old.length ? [{ label: "Retired", items: old.map((c) => ({ value: c.id, label: c.label + " (retired)" })) }] : []),
           { label: "Compare", items: [{ value: "compare", label: "Compare models…" }] },
         ]} /></Field>
-        <Field label="Machine"><Pick label="Machine" value={S.machine} onChange={(v) => set({ machine: v })} groups={[{ items: [...D.machines.map((m) => ({ value: m.id, label: `${m.id} (${m.person})` })), { value: "everyone", label: "Everyone" }] }]} /></Field>
+        <Field label="Machine"><Pick label="Machine" value={S.machine} onChange={(v) => set({ machine: v })} groups={[{ items: [...D.machines.map((m) => ({ value: m.id, label: m.person ? `${m.id} (${m.person})` : m.id })), { value: "everyone", label: "Everyone" }] }]} /></Field>
         {compare && <Field label="Effort level"><Pick label="Effort level" value={S.compareEffort} onChange={(v) => set({ compareEffort: v as Effort })} groups={[{ items: ["medium", "high", "xhigh"].map((x) => ({ value: x, label: x })) }]} className="min-w-28" /></Field>}
         <Field label="Range">
           <ToggleGroup type="single" variant="outline" value={String(S.range)} onValueChange={(v) => v && set({ range: +v })} className="doodle-sm bg-card" spacing={0}>
