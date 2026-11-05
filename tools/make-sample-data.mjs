@@ -24,8 +24,8 @@ const r2 = (x) => Math.round(x * 100) / 100;
 
 // ---- catalogue --------------------------------------------------------------
 const benches = [
-  { id: "core", name: "Core", owner: "anon", description: "Generic everyday dev work across languages, plus UI/UX." },
-  { id: "ops-powershell", name: "PowerShell ops", owner: "anon", description: "Deployment and admin scripting tasks." },
+  { id: "core", name: "Core", owner: "sample-person", description: "Generic everyday dev work across languages, plus UI/UX." },
+  { id: "ops-powershell", name: "PowerShell ops", owner: "sample-person", description: "Deployment and admin scripting tasks." },
 ];
 
 const tasks = [
@@ -54,7 +54,7 @@ const tasks = [
   ["ps-event-digest", "ops-powershell", "Summarise event logs into a digest", "PowerShell", "feature", "easy"],
 ].map(([id, bench, title, language, kind, difficulty]) => ({
   id, bench, title, language, kind, difficulty, version: 1,
-  ui: kind === "ui design", added_by: bench === "core" ? "anon" : "anon",
+  ui: kind === "ui design", added_by: bench === "core" ? "sample-person" : "sample-person",
 }));
 
 const contenders = [
@@ -63,7 +63,7 @@ const contenders = [
 ];
 
 const machines = [
-  { id: "rig-1", person: "anon", os: "windows" },
+  { id: "rig-1", person: "sample-person", os: "windows" },
   { id: "alex-macbook", person: "alex", os: "macos" },
 ];
 

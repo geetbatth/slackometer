@@ -38,7 +38,7 @@ benches/<bench>/tasks/<task-id>/
   "required_tools": ["node"],
   "test_command_hints": ["node --test", "npm test"],
   "grade": "node .grader/grade.mjs",
-  "added_by": "anon"
+  "added_by": "your-name"
 }
 ```
 
