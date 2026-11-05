@@ -83,6 +83,18 @@ The grade command must print, **as its last line of stdout**, exactly:
   `{"page":"index.html","selectors":["main#settings","form button[type=submit]"],"states":["[data-state=empty]","[data-state=error]","[data-state=loading]"],"mobile":true,"brief":"<one-paragraph brief>","rubric":"rubric.md"}`.
   The hard checks are: the page renders, there are no console errors, every selector exists, every state element exists in the DOM (may be hidden), and the page fits a 390px phone. `.grader/rubric.md` holds 4–6 scoring points for the judge (layout and hierarchy, spacing, states, mobile, accessibility, fidelity to the brief). The prompt must ask for the required elements and states in plain words (e.g. "an empty state", "an error message area"). The starter should be weak or ugly but working.
 
+## Hard tasks: prove they punish shortcuts
+
+Strong models pass ordinary tasks at every effort level, so a task only tells the levels apart if a hasty fix *fails*. For `"difficulty": "hard"`:
+
+- The visible tests are deliberately incomplete: the obvious, shallow fix passes all of them.
+- 10–16 hidden checks, at least 5 of them traps a careful engineer finds by reading the code, the data, the other callers or the docs. Never put them in the prompt.
+- Every trap must be **discoverable**. If nothing in the workspace hints at it, every level fails it equally and it measures nothing.
+- Ship a `naive/` folder next to `workspace/` (laid out like it, overlaid on it): what a hasty engineer would do. It must pass the visible tests. `validate` grades it too and fails the task if the naive fix passes every hidden check. Aim for about 40–70%.
+- Bump `version` whenever you change a task; calibration only reuses runs of the same version.
+
+When choosing a suite, calibration prefers tasks where the effort levels scored differently, then harder ones.
+
 ## Prove it
 
 From the public repo (with `local.json` pointing `tasks_dir` at this repo):
