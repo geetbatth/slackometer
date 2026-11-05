@@ -149,7 +149,7 @@ test("I8 a limit reported only on stderr is limited", () => {
   assert.equal(m.end, "limited")
 })
 test("I8 an errored $0 run while the guard is tripped is treated as limited and retried", async () => {
-  const cfg = dayRepo(); let n = 0, g = 0
+  const cfg = { ...dayRepo(), parallel: 1 }; let n = 0, g = 0 // counts guard calls in order, so one run at a time
   await runDay(cfg, { ...deps(),
     safeGuard: async () => (g++ === 1 ? { ok: false, reason: "5-hour usage at 100%", usage: null } : { ok: true, reason: "", usage: null }),
     runOne: async (t, e) => (e === "medium" && n++ === 0 ? write(cfg, t, e, { end: "errored", cost_usd: 0, pass: false }) : write(cfg, t, e)) })

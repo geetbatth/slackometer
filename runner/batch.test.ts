@@ -83,3 +83,18 @@ test("no lock means nothing runs", async () => {
   const days = await runDay(cfg, { ...base(cfg), runOne: async (t, e) => { calls++; return fakeResult(cfg, t, e) } })
   assert.equal(calls, 0); assert.equal(days.length, 0)
 })
+
+test("runs several at once (cfg.parallel) and still finishes the whole suite", async () => {
+  const cfg = { ...setup(), parallel: 3 }; let live = 0, peak = 0
+  const [day] = await runDay(cfg, { ...base(cfg), runOne: async (t, e) => {
+    live++; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, 20)); live--
+    return fakeResult(cfg, t, e)
+  } })
+  assert.equal(peak, 3); assert.equal(day.status, "complete"); assert.equal(day.cost_usd, 3)
+})
+
+test("one at a time when parallel is 1", async () => {
+  const cfg = { ...setup(), parallel: 1 }; let live = 0, peak = 0
+  await runDay(cfg, { ...base(cfg), runOne: async (t, e) => { live++; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, 5)); live--; return fakeResult(cfg, t, e) } })
+  assert.equal(peak, 1)
+})

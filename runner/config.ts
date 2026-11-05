@@ -14,6 +14,7 @@ export function defaults(): LocalConfig {
     benches: ["core"], exclude_tasks: [], private_benches: [], private_results: "metrics-only",
     contenders: [{ tool: "claude-code", model: "claude-opus-5-5", efforts: ["medium", "high", "xhigh"] }],
     schedule: { days: ["Mon", "Wed"], time: "03:00" },
+    parallel: 3,
     budget: { percent_of_weekly_per_run: 2, ceiling_percent_of_weekly_per_run: 3, plan_to: 0.75, guard_percent: 90 },
     cutoff: "23:59", judge: { model: "claude-opus-5-5", effort: "high" },
     quiet: { scheduled_tasks: [], close_apps: [], manual: [] },
@@ -41,6 +42,7 @@ export function validate(c: LocalConfig): string[] {
     if (!k.model) p.push(`contenders[${i}].model: required`)
     if (!k.efforts?.length || k.efforts.some((e) => !EFFORTS.has(e))) p.push(`contenders[${i}].efforts: one or more of low|medium|high|xhigh|max`)
   }
+  if (!(Number.isInteger(c.parallel ?? 1) && (c.parallel ?? 1) >= 1 && (c.parallel ?? 1) <= 6)) p.push("parallel: 1-6")
   const b = c.budget
   if (!(b.percent_of_weekly_per_run > 0)) p.push("budget.percent_of_weekly_per_run: > 0")
   if (!(b.ceiling_percent_of_weekly_per_run >= b.percent_of_weekly_per_run)) p.push("budget.ceiling_percent_of_weekly_per_run: >= percent_of_weekly_per_run")

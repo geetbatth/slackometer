@@ -93,35 +93,50 @@ export async function runDay(cfg: LocalConfig, opts: Partial<DayDeps> = {}): Pro
       if (r.cc_version) ccVersion = r.cc_version
     }
 
-    outer: for (const entry of lock.tasks) {
+    // queue in task-major order; finished runs from an earlier start of this day are counted, not re-run
+    const queue: { t: TaskDef; effort: Effort; est: number }[] = []
+    for (const entry of lock.tasks) {
       const t = tasks.get(entry.id)
       if (!t) { d.log(`skip ${entry.id}: no longer in the task pool (re-calibrate to drop it)`); continue }
       for (const effort of lock.efforts) {
-        if (spentUsd * rate >= ceiling) { reason = `over ceiling (${(spentUsd * rate).toFixed(2)}% >= ${ceiling}%)`; break outer }
         const file = resultPath(cfg, d.date, t.id, effort)
         if (existsSync(file)) {
           const prev = JSON.parse(readFileSync(file, "utf8")) as RunResult
           if (prev.end !== "limited") { charge(prev, effort, entry.cost_usd[effort]); resumed = true; continue }
         }
-        for (let attempt = 0; ; attempt++) {
-          if (pastCutoff()) { reason = `cut-off ${cfg.cutoff} reached`; break outer }
-          const g = await d.safeGuard(cfg)
-          if (!g.ok) {
-            if (pastCutoff(GUARD_WAIT)) { reason = `usage guard until cut-off: ${g.reason}`; break outer }
-            d.log(`waiting: ${g.reason}`); await d.sleep(GUARD_WAIT); attempt--; continue
-          }
-          d.log(`${t.id} @ ${effort}`)
-          let r: RunResult
-          try { r = await d.runOne(t, effort, { cfg, date: d.date, suiteVersion: lock.version, contender }) }
-          catch (e) { d.log(`  runner error: ${(e as Error).message}`); r = erroredResult(cfg, t, effort, d.date, lock.version, contender, e) }
-          // a limit Claude Code didn't report in the transcript: an errored, cost-less run while the guard is now tripped
-          if (r.end === "errored" && !r.cost_usd && !(await d.safeGuard(cfg)).ok) r = { ...r, end: "limited" }
-          if (r.end === "limited" && attempt < LIMIT_RETRIES) { d.log("  limited; retrying in 30 min"); await d.sleep(LIMIT_WAIT); continue }
-          charge(r, effort, entry.cost_usd[effort])
-          break
-        }
+        queue.push({ t, effort, est: entry.cost_usd[effort] ?? 0 })
       }
     }
+    // several runs at once (cfg.parallel); runs in flight count at their calibrated cost against the ceiling
+    let inFlight = 0
+    const worker = async () => {
+      while (!reason && queue.length) {
+        if ((spentUsd + inFlight) * rate >= ceiling) { reason = `over ceiling (${(spentUsd * rate).toFixed(2)}% >= ${ceiling}%)`; return }
+        const { t, effort, est } = queue.shift()!
+        inFlight += est
+        try {
+          for (let attempt = 0; ; attempt++) {
+            if (reason) return
+            if (pastCutoff()) { reason = `cut-off ${cfg.cutoff} reached`; return }
+            const g = await d.safeGuard(cfg)
+            if (!g.ok) {
+              if (pastCutoff(GUARD_WAIT)) { reason = `usage guard until cut-off: ${g.reason}`; return }
+              d.log(`waiting: ${g.reason}`); await d.sleep(GUARD_WAIT); attempt--; continue
+            }
+            d.log(`${t.id} @ ${effort}`)
+            let r: RunResult
+            try { r = await d.runOne(t, effort, { cfg, date: d.date, suiteVersion: lock.version, contender }) }
+            catch (e) { d.log(`  runner error: ${(e as Error).message}`); r = erroredResult(cfg, t, effort, d.date, lock.version, contender, e) }
+            // a limit Claude Code didn't report in the transcript: an errored, cost-less run while the guard is now tripped
+            if (r.end === "errored" && !r.cost_usd && !(await d.safeGuard(cfg)).ok) r = { ...r, end: "limited" }
+            if (r.end === "limited" && attempt < LIMIT_RETRIES) { d.log("  limited; retrying in 30 min"); await d.sleep(LIMIT_WAIT); continue }
+            charge(r, effort, est || undefined)
+            break
+          }
+        } finally { inFlight -= est }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.max(1, cfg.parallel ?? 1) }, worker))
     if (!reason && spentUsd * rate > ceiling) reason = `over ceiling (${(spentUsd * rate).toFixed(2)}% > ${ceiling}%)`
 
     const after = await d.readUsage().catch(() => null)
