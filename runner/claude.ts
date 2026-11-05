@@ -20,7 +20,7 @@ export const runClaude: RunClaude = async (o) => {
   mkdirSync(dirname(o.transcriptPath), { recursive: true })
   const t0 = Date.now()
   const r = await run("claude", buildArgs(o.prompt, o.model, o.effort, o.maxTurns, o.isolation), {
-    cwd: o.cwd, shell: false, timeoutMs: o.timeoutMs, stdio: ["ignore", "pipe", "pipe"], env: await claudeEnv(o.timeoutMs),
+    cwd: o.cwd, shell: false, timeoutMs: o.timeoutMs, stdio: ["ignore", "pipe", "pipe"], env: await claudeEnv(o.timeoutMs), reap: true,
     onStdout: (chunk) => appendFileSync(o.transcriptPath, chunk),
   })
   return { exitCode: r.code, timedOut: r.timedOut, lines: r.stdout.split(/\r?\n/).filter(Boolean), wallMs: Date.now() - t0, stderr: (r.spawnError ?? "") + r.stderr }

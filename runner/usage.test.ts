@@ -64,3 +64,15 @@ test("sameWeek ignores the endpoint's sub-second jitter but catches a real reset
   assert.equal(sameWeek("2026-11-10T16:00:00.739091+00:00", "2026-11-17T16:00:00.1+00:00"), false)
   assert.equal(sameWeek("", "2026-11-10T16:00:00Z"), true)
 })
+
+test("safeGuard falls back to a recent reading well under the guard when the endpoint is busy, never to an old or close one", async () => {
+  const { safeGuard } = await import("./usage.ts")
+  const cfg = (await import("./config.ts")).defaults()
+  const busy = async () => { throw new Error("usage endpoint returned HTTP 429") }
+  const u = (seven_day: number) => ({ five_hour: 20, seven_day, seven_day_resets_at: "", extra_usage_enabled: false })
+  const recentLow = await safeGuard(cfg, busy, () => ({ at: Date.now() - 5 * 60_000, usage: u(60) }))
+  assert.equal(recentLow.ok, true); assert.match(recentLow.reason, /min ago/)
+  assert.equal((await safeGuard(cfg, busy, () => ({ at: Date.now() - 45 * 60_000, usage: u(60) }))).ok, false) // too old
+  assert.equal((await safeGuard(cfg, busy, () => ({ at: Date.now() - 5 * 60_000, usage: u(80) }))).ok, false)  // too close to 90%
+  assert.equal((await safeGuard(cfg, busy, () => null)).ok, false)
+})

@@ -1,0 +1,45 @@
+{
+  "contender": "claude-code/claude-opus-5-5",
+  "machine": "rig-1",
+  "version": 3,
+  "calibrated_at": "2026-11-05",
+  "efforts": [
+    "medium",
+    "high",
+    "xhigh"
+  ],
+  "tasks": [
+    {
+      "id": "cs-pricing-rules",
+      "version": 1
+    },
+    {
+      "id": "ui-mobile-table",
+      "version": 1
+    },
+    {
+      "id": "ps-cleanup-job",
+      "version": 1
+    },
+    {
+      "id": "py-retry-regression",
+      "version": 1
+    },
+    {
+      "id": "sql-safe-migration",
+      "version": 1
+    },
+    {
+      "id": "ts-ledger-drift",
+      "version": 1
+    },
+    {
+      "id": "cs-inventory-sync",
+      "version": 1
+    },
+    {
+      "id": "ps-deploy-script",
+      "version": 1
+    }
+  ]
+}

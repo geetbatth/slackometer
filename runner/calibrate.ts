@@ -151,7 +151,8 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
       }
     }
     await Promise.all(Array.from({ length: Math.max(1, opts.parallel ?? 1) }, worker))
-    usage.after = await d.readUsage()
+    // topping up with a known rate doesn't need the final reading (the rate is kept), so a busy endpoint can't sink it
+    usage.after = await d.readUsage().catch((e) => { if (known != null && results.some((r) => (r as RunResult & { reused_from?: string }).reused_from)) return usage.before; throw e })
   })
   const fresh = results.filter((r) => !(r as RunResult & { reused_from?: string }).reused_from)
   const usd = fresh.reduce((a, r) => a + r.cost_usd, 0)

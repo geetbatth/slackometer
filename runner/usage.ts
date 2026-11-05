@@ -32,20 +32,43 @@ export async function defaultRefresh(): Promise<void> {
   await run("claude", ["-p", "ok", "--max-turns", "1", "--model", "claude-haiku-5-5", "--output-format", "json"], { shell: false, timeoutMs: 120_000 })
 }
 
-export async function readUsage(o: { fetchImpl?: typeof fetch; credPath?: string; refresh?: () => Promise<void> } = {}): Promise<Usage> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// The usage endpoint is rate-limited per account (and shared with anything else showing your usage),
+// so readings are cached for every runner process and a recent one can stand in when it says 429.
+const CACHE = () => join(process.env.SLACKOMETER_HOME ?? join(homedir(), ".slackometer"), "state", "usage-cache.json")
+const FRESH_MS = 3 * 60_000
+export function cachedUsage(file = CACHE()): { at: number; usage: Usage } | null {
+  try { return JSON.parse(readFileSync(file, "utf8")) } catch { return null }
+}
+function saveCache(u: Usage, file = CACHE()) {
+  try { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify({ at: Date.now(), usage: u })) } catch { /* cache is best effort */ }
+}
+
+export async function readUsage(o: { fetchImpl?: typeof fetch; credPath?: string; refresh?: () => Promise<void>; wait?: (ms: number) => Promise<void>; cacheFile?: string } = {}): Promise<Usage> {
   const credPath = o.credPath ?? DEFAULT_CRED
+  // only the real login uses the shared cache (tests pass their own credentials)
+  const cacheFile = o.cacheFile ?? (credPath === DEFAULT_CRED ? CACHE() : undefined)
+  if (cacheFile) { const c = cachedUsage(cacheFile); if (c && Date.now() - c.at < FRESH_MS) return c.usage }
   let c = readCreds(credPath)
   if (c.expiresAt && c.expiresAt < Date.now() + 60_000) { await (o.refresh ?? defaultRefresh)(); c = readCreds(credPath) }
   let res: Response
-  try {
-    res = await (o.fetchImpl ?? fetch)(URL_USAGE, { headers: { Authorization: `Bearer ${c.accessToken}`, "anthropic-beta": "oauth-2025-04-20", "User-Agent": "slackometer" } })
-  } catch (e) { throw new UsageError(`usage request failed: ${(e as Error).message}`) }
+  // the usage endpoint rate-limits (429) and has hiccups: retry with backoff before failing closed
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await (o.fetchImpl ?? fetch)(URL_USAGE, { headers: { Authorization: `Bearer ${c.accessToken}`, "anthropic-beta": "oauth-2025-04-20", "User-Agent": "slackometer" } })
+    } catch (e) { if (attempt < 4) { await (o.wait ?? sleep)(15_000 * 2 ** attempt); continue } throw new UsageError(`usage request failed: ${(e as Error).message}`) }
+    if ((res.status === 429 || res.status >= 500) && attempt < 4) { await (o.wait ?? sleep)(15_000 * 2 ** attempt); continue }
+    break
+  }
   if (res.status !== 200) throw new UsageError(`usage endpoint returned HTTP ${res.status}`)
   let j: any
   try { j = await res.json() } catch { throw new UsageError("usage endpoint returned non-JSON") }
   const five = j?.five_hour?.utilization, week = j?.seven_day?.utilization
   if (typeof five !== "number" || typeof week !== "number") throw new UsageError("usage response is missing five_hour/seven_day utilization (endpoint changed?)")
-  return { five_hour: five, seven_day: week, seven_day_resets_at: String(j.seven_day.resets_at ?? ""), extra_usage_enabled: !!j?.extra_usage?.is_enabled }
+  const u: Usage = { five_hour: five, seven_day: week, seven_day_resets_at: String(j.seven_day.resets_at ?? ""), extra_usage_enabled: !!j?.extra_usage?.is_enabled }
+  if (cacheFile) saveCache(u, cacheFile)
+  return u
 }
 
 /** Same weekly window? The endpoint's reset time jitters by fractions of a second between calls. */
@@ -62,9 +85,17 @@ export function guard(u: Usage, cfg: LocalConfig): { ok: boolean; reason: string
   return { ok: true, reason: `5-hour ${u.five_hour}%, weekly ${u.seven_day}%` }
 }
 
-export async function safeGuard(cfg: LocalConfig, read: () => Promise<Usage> = () => readUsage()): Promise<{ ok: boolean; reason: string; usage: Usage | null }> {
+export async function safeGuard(cfg: LocalConfig, read: () => Promise<Usage> = () => readUsage(), cached: () => { at: number; usage: Usage } | null = () => cachedUsage()): Promise<{ ok: boolean; reason: string; usage: Usage | null }> {
   try { const u = await read(); return { ...guard(u, cfg), usage: u } }
-  catch (e) { return { ok: false, reason: `usage unreadable: ${(e as Error).message}`, usage: null } }
+  catch (e) {
+    // a reading from the last 30 min that is well clear of the guard can stand in for a rate-limited endpoint
+    const c = cached(), margin = 15
+    if (c && Date.now() - c.at < 30 * 60_000 && c.usage.five_hour < cfg.budget.guard_percent - margin && c.usage.seven_day < cfg.budget.guard_percent - margin) {
+      const g = guard(c.usage, cfg)
+      return { ...g, reason: `${g.reason} (reading from ${Math.round((Date.now() - c.at) / 60_000)} min ago; usage endpoint busy)`, usage: c.usage }
+    }
+    return { ok: false, reason: `usage unreadable: ${(e as Error).message}`, usage: null }
+  }
 }
 
 // ---- exchange rate: % of the weekly limit per API-equivalent dollar ----
