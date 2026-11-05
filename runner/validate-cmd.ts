@@ -11,7 +11,7 @@ export async function main(args: string[]): Promise<number> {
   for (const t of tasks) {
     const v = await validateTask(t)
     if (!v.ok) bad++
-    console.log(`${v.ok ? "ok  " : "FAIL"} ${t.id.padEnd(28)} untouched ${v.untouched.passed}/${v.untouched.total}  reference ${v.reference.passed}/${v.reference.total}${v.ok ? "" : "\n       " + v.problems.join("\n       ")}`)
+    console.log(`${v.ok ? "ok  " : "FAIL"} ${t.id.padEnd(28)} untouched ${v.untouched.passed}/${v.untouched.total}  reference ${v.reference.passed}/${v.reference.total}${v.naive ? `  naive ${v.naive.passed}/${v.naive.total}` : ""}${v.ok ? "" : "\n       " + v.problems.join("\n       ")}`)
   }
   console.log(`\n${tasks.length - bad}/${tasks.length} tasks valid`)
   return bad ? 1 : 0

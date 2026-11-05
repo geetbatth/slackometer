@@ -11,7 +11,7 @@ import type { Effort, TaskDef } from "./types.ts"
 const T = (id: string, language: string, difficulty: TaskDef["difficulty"]) => ({ id, language, difficulty } as TaskDef)
 const cost = (n: number) => ({ medium: n, high: n, xhigh: n } as Record<Effort, number>)
 function pool() {
-  const m = new Map<string, { task: TaskDef; usd: Record<Effort, number> }>()
+  const m = new Map<string, { task: TaskDef; usd: Record<Effort, number>; signal?: number }>()
   const add = (id: string, lang: string, d: TaskDef["difficulty"], c: number) => m.set(id, { task: T(id, lang, d), usd: cost(c) })
   add("ts-1", "TypeScript", "easy", 0.5); add("ts-2", "TypeScript", "medium", 0.6); add("ts-3", "TypeScript", "hard", 1.0)
   add("py-1", "Python", "easy", 0.4); add("py-2", "Python", "hard", 1.2)
@@ -28,11 +28,26 @@ test("selectSuite respects planTo x allowance", () => {
 test("selectSuite spreads across languages before doubling up", () => {
   const ids = selectSuite(pool(), 10, 0.75)
   const langs = new Set(ids.map((id) => pool().get(id)!.task.language))
-  assert.equal(langs.size, 4, ids.join(","))
+  assert.equal(langs.size, ids.length, "no language twice: " + ids.join(","))
+  assert.ok(langs.size >= 3, ids.join(","))
 })
-test("selectSuite is deterministic and prefers easy first within a language", () => {
+test("selectSuite is deterministic and, without calibration signal, prefers harder tasks", () => {
   assert.deepEqual(selectSuite(pool(), 10, 0.75), selectSuite(pool(), 10, 0.75))
-  assert.ok(selectSuite(pool(), 10, 0.75).includes("py-1"))
+  assert.ok(selectSuite(pool(), 10, 0.75).includes("py-2"))
+})
+test("selectSuite prefers tasks that told the effort levels apart, and falls back to a cheaper one that fits", () => {
+  const p = pool()
+  p.get("ts-1")!.signal = 0.5 // an easy task where one level failed beats an all-pass hard task
+  const ids = selectSuite(p, 10, 0.75)
+  assert.ok(ids.includes("ts-1") && !ids.includes("ts-3"), ids.join(","))
+  // tight budget: hard py-2 ($3.60) doesn't fit, so the cheaper py-1 is taken instead of dropping Python
+  assert.ok(selectSuite(pool(), 6, 0.75).includes("py-1"))
+})
+test("signalOf: all-pass is 0, a spread or a shared shortfall counts", async () => {
+  const { signalOf } = await import("./calibrate.ts")
+  assert.equal(signalOf([{ score: 1 }, { score: 1 }, { score: 1 }]), 0)
+  assert.equal(signalOf([{ score: 0.5 }, { score: 1 }, { score: 1 }]), 1)
+  assert.equal(signalOf([{ score: 0.8 }, { score: 0.8 }, { score: 0.8 }]), 0.2)
 })
 test("selectSuite with a huge allowance takes everything", () => {
   assert.equal(selectSuite(pool(), 1000, 0.75).length, 7)
@@ -112,4 +127,29 @@ test("relock re-picks the suite at a new budget without running anything, until 
   mkdirSync(join(paths(cfg).machineResults, "2026-11-09"), { recursive: true })
   writeFileSync(join(paths(cfg).machineResults, "2026-11-09", "ok-task__high.json"), JSON.stringify({ contender: lock.contender, suite_version: 1 }))
   assert.throws(() => relock(cfg, cfg.contenders[0], () => {}), /already has run days/)
+})
+
+test("a second calibration reuses runs of unchanged tasks and only runs the new ones, keeping the known rate", async () => {
+  const { mkdirSync, writeFileSync } = await import("node:fs")
+  const repo = mkdtempSync(join(tmpdir(), "slk-inc-"))
+  const base = fixtureCfg()
+  const cfg = { ...base, repo_dir: repo, exclude_tasks: ["crash-task", "sleep-task"], budget: { ...base.budget, percent_of_weekly_per_run: 20, ceiling_percent_of_weekly_per_run: 30 } }
+  let week = 20
+  const save = (t: TaskDef, effort: Effort, v: number) => {
+    const r = { schema: 1, date: `calibration-v${v}`, contender: "claude-code/claude-opus-5-5", task: t.id, task_version: t.version, effort, cost_usd: 2, score: 1, end: "finished" }
+    const d = join(paths(cfg).machineResults, `calibration-v${v}`); mkdirSync(d, { recursive: true }); writeFileSync(join(d, `${t.id}__${effort}.json`), JSON.stringify(r)); return r as never
+  }
+  const deps = (v: number, seen: string[]) => ({
+    runOne: async (t: TaskDef, effort: Effort) => { seen.push(`${t.id}/${effort}`); week += 2; return save(t, effort, v) },
+    readUsage: async () => ({ five_hour: 10, seven_day: week, seven_day_resets_at: "", extra_usage_enabled: false }),
+    withQuiet: async (_c: unknown, fn: () => Promise<void>) => fn(), today: () => "2026-11-05", log: () => {},
+  })
+  const first: string[] = []
+  await calibrate(cfg, cfg.contenders[0], { yes: true, deps: deps(1, first) as never })
+  assert.equal(first.length, 3)
+  week += 50 // other usage meanwhile must not change the learned rate
+  const second: string[] = []
+  const lock = await calibrate(cfg, cfg.contenders[0], { yes: true, deps: deps(2, second) as never })
+  assert.equal(second.length, 0, "nothing new to run")
+  assert.equal(lock!.version, 2); assert.equal(lock!.rate_pct_per_usd, 1)
 })

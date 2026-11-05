@@ -11,18 +11,20 @@ const DIFF_ORDER = { easy: 0, medium: 1, hard: 2 } as const
 const GUARD_WAIT = 20 * 60_000
 export const DEFAULT_RUN_COST: Record<Effort, number> = { low: 0.25, medium: 0.4, high: 0.7, xhigh: 1.2, max: 2 }
 
-/** Deterministic, language-balanced pick that fits planTo x allowance (all levels of a task count together). */
-export function selectSuite(costs: Map<string, { task: TaskDef; usd: Record<Effort, number> }>, allowanceUsd: number, planTo: number): string[] {
+/**
+ * Deterministic, language-balanced pick that fits planTo x allowance (all levels of a task count together).
+ * Within a language, tasks that told the effort levels apart at calibration come first (`signal`), then harder ones:
+ * a task every level aces measures nothing.
+ */
+export function selectSuite(costs: Map<string, { task: TaskDef; usd: Record<Effort, number>; signal?: number }>, allowanceUsd: number, planTo: number): string[] {
   const cap = allowanceUsd * planTo
   const total = (id: string) => Object.values(costs.get(id)!.usd).reduce((a, b) => a + b, 0)
   const buckets = new Map<string, string[]>()
   for (const [id, { task }] of costs) buckets.set(task.language, [...(buckets.get(task.language) ?? []), id])
   for (const [lang, ids] of buckets) {
-    // rotate difficulties easy -> medium -> hard, cheapest first within each difficulty
-    const byDiff = [0, 1, 2].map((d) => ids.filter((id) => DIFF_ORDER[costs.get(id)!.task.difficulty] === d).sort((a, b) => total(a) - total(b) || a.localeCompare(b)))
-    const order: string[] = []
-    while (byDiff.some((q) => q.length)) for (const q of byDiff) if (q.length) order.push(q.shift()!)
-    buckets.set(lang, order)
+    const sig = (id: string) => costs.get(id)!.signal ?? 0
+    const diff = (id: string) => DIFF_ORDER[costs.get(id)!.task.difficulty]
+    buckets.set(lang, [...ids].sort((a, b) => sig(b) - sig(a) || diff(b) - diff(a) || total(a) - total(b) || a.localeCompare(b)))
   }
   const picked: string[] = []
   const count = new Map<string, number>()
@@ -30,11 +32,21 @@ export function selectSuite(costs: Map<string, { task: TaskDef; usd: Record<Effo
   let spent = 0
   while (done.size < buckets.size) {
     const lang = [...buckets.keys()].filter((l) => !done.has(l)).sort((a, b) => (count.get(a) ?? 0) - (count.get(b) ?? 0) || a.localeCompare(b))[0]
-    const next = buckets.get(lang)!.shift()
-    if (!next || spent + total(next) > cap + 1e-9) { done.add(lang); continue }
+    // best remaining task of this language that still fits; a language is done when none does
+    const q = buckets.get(lang)!
+    const i = q.findIndex((id) => spent + total(id) <= cap + 1e-9)
+    if (i < 0) { done.add(lang); continue }
+    const next = q.splice(i, 1)[0]
     picked.push(next); spent += total(next); count.set(lang, (count.get(lang) ?? 0) + 1)
   }
   return picked
+}
+
+/** How much a task told the effort levels apart: spread of scores plus how far the weakest level fell short. */
+export function signalOf(runs: Pick<RunResult, "score">[]): number {
+  if (runs.length < 2) return 0
+  const sc = runs.map((r) => r.score)
+  return Math.round(((Math.max(...sc) - Math.min(...sc)) + (1 - Math.min(...sc))) * 1000) / 1000
 }
 
 export const suitesDir = (cfg: LocalConfig) => paths(cfg).locks // full locks (with rate and $ allowance) stay local
@@ -48,6 +60,17 @@ export function latestLock(cfg: LocalConfig, c: Contender): SuiteLock | null {
   const versions = readdirSync(dir).filter((f) => f.startsWith(prefix) && f.endsWith(".json")).map((f) => Number(f.slice(prefix.length, -5))).filter(Number.isFinite)
   if (!versions.length) return null
   return JSON.parse(readFileSync(join(dir, `${prefix}${Math.max(...versions)}.json`), "utf8"))
+}
+
+/** The same task version, already run at this level by an earlier calibration of this contender. */
+function earlierRun(cfg: LocalConfig, c: Contender, version: number, t: TaskDef, e: Effort): RunResult | null {
+  for (let v = version - 1; v >= 1; v--) {
+    const f = join(paths(cfg).machineResults, `calibration-v${v}`, `${t.id}__${e}.json`)
+    if (!existsSync(f)) continue
+    const r = JSON.parse(readFileSync(f, "utf8")) as RunResult
+    if (r.contender === contenderId(c) && r.task_version === t.version && r.end !== "limited") return r
+  }
+  return null
 }
 
 export interface CalDeps {
@@ -91,6 +114,7 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
   const calDir = join(paths(cfg).machineResults, `calibration-v${version}`)
   const stateFile = join(paths(cfg).state, `calibration-${cfg.machine}-v${version}.json`)
   const results: RunResult[] = []
+  let reused = 0
   const usage: { before: Usage | null; after: Usage | null } = { before: null, after: null }
   await d.withQuiet(cfg, async () => {
     // an unfinished calibration of this version is resumed, measuring from its original start
@@ -104,8 +128,12 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
         const r = JSON.parse(readFileSync(done, "utf8")) as RunResult
         if (r.end !== "limited") { results.push(r); continue }
       }
+      // an earlier calibration already measured this exact task version at this level: reuse it, don't pay again
+      const old = earlierRun(cfg, contender, version, t, e)
+      if (old) { const r = { ...old, reused_from: old.date }; writeFileSync(done, JSON.stringify(r, null, 2)); results.push(r); reused++; continue }
       todo.push([t, e])
     }
+    if (reused) d.log(`  reusing ${reused} runs from earlier calibrations; ${todo.length} to run`)
     // several runs at once only changes wall-clock minutes (builds share the CPU); tokens, cost and scores are per run
     const worker = async () => {
       for (let next = todo.shift(); next; next = todo.shift()) {
@@ -125,14 +153,20 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
     await Promise.all(Array.from({ length: Math.max(1, opts.parallel ?? 1) }, worker))
     usage.after = await d.readUsage()
   })
-  const usd = results.reduce((a, r) => a + r.cost_usd, 0)
+  const fresh = results.filter((r) => !(r as RunResult & { reused_from?: string }).reused_from)
+  const usd = fresh.reduce((a, r) => a + r.cost_usd, 0)
   const before = usage.before!, after = usage.after!
-  if (!sameWeek(before.seven_day_resets_at, after.seven_day_resets_at))
-    throw new Error("your weekly usage window reset during calibration, so the rate can't be measured. Run calibrate --yes again (finished runs are reused).")
   const dPct = after.seven_day - before.seven_day
-  if (dPct <= 0) throw new Error(`weekly usage didn't move (${dPct} points) over $${usd.toFixed(2)} of runs, so the rate can't be measured. Run calibrate --yes again later (finished runs are reused).`)
-  if (dPct < 5) d.log(`Note: weekly usage moved only ${dPct} points; the rate is rough until more run days refine it.`)
-  addSample(rateFile, { date, d_pct: dPct, usd, clean: dPct >= 5 || known == null })
+  if (known != null && results.some((r) => (r as RunResult & { reused_from?: string }).reused_from)) {
+    // topping up an existing calibration: keep the rate already learned (run days keep refining it)
+    d.log(`Kept the existing usage rate; weekly usage moved ${dPct} points over $${usd.toFixed(2)} of new runs.`)
+  } else {
+    if (!sameWeek(before.seven_day_resets_at, after.seven_day_resets_at))
+      throw new Error("your weekly usage window reset during calibration, so the rate can't be measured. Run calibrate --yes again (finished runs are reused).")
+    if (dPct <= 0) throw new Error(`weekly usage didn't move (${dPct} points) over $${usd.toFixed(2)} of runs, so the rate can't be measured. Run calibrate --yes again later (finished runs are reused).`)
+    if (dPct < 5) d.log(`Note: weekly usage moved only ${dPct} points; the rate is rough until more run days refine it.`)
+    addSample(rateFile, { date, d_pct: dPct, usd, clean: dPct >= 5 || known == null })
+  }
   const rate = currentRate(rateFile)
   if (!rate) throw new Error("could not derive a usage rate (no cost recorded?)")
   return writeLock(cfg, contender, tasks, efforts, results, version, date, rate, d.log)
@@ -148,7 +182,7 @@ function writeLock(cfg: LocalConfig, contender: Contender, tasks: TaskDef[], eff
       const r = results.find((x) => x.task === t.id && x.effort === e)
       return [e, r && r.end !== "limited" ? r.cost_usd : DEFAULT_RUN_COST[e]]
     })) as Record<Effort, number>
-    costs.set(t.id, { task: t, usd: usdBy })
+    costs.set(t.id, { task: t, usd: usdBy, signal: signalOf(results.filter((x) => x.task === t.id && x.end !== "limited")) })
   }
   const ids = selectSuite(costs, allowance, cfg.budget.plan_to)
   if (!ids.length) throw new Error(`no task fits a $${allowance.toFixed(2)} run-day allowance at every level. Raise budget.percent_of_weekly_per_run or run fewer effort levels, then calibrate again (finished runs are reused).`)
