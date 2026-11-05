@@ -32,3 +32,14 @@ test("applyReference overwrites workspace files", async () => {
   assert.match(readFileSync(join(dir, "add.mjs"), "utf8"), /a \+ b/)
   await removeRunDir(dir)
 })
+
+test("each run gets its own parent folder; sibling folders the model makes are removed with it", async () => {
+  const { existsSync, mkdirSync } = await import("node:fs")
+  const { dirname, join } = await import("node:path")
+  const dir = await makeRunDir(ok())
+  const sibling = join(dirname(dir), "_baseline")
+  mkdirSync(sibling)
+  await removeRunDir(dir)
+  assert.equal(existsSync(sibling), false)
+  assert.equal(existsSync(dirname(dir)), false)
+})

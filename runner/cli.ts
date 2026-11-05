@@ -9,6 +9,7 @@ const COMMANDS: Record<string, { help: string; load: () => Promise<{ main: (args
   calibrate: { help: "calibrate [--yes]        run every task x level once, then lock a suite (uses real usage)", load: () => import("./calibrate-cmd.ts") },
   run: { help: "run [--date YYYY-MM-DD]  run today's locked suite (what the schedule calls)", load: () => import("./batch-cmd.ts") },
   index: { help: "index                    rebuild site/data/runs.js from results/", load: () => import("./index-cmd.ts") },
+  reparse: { help: "reparse                  recompute transcript metrics for finished runs (after parser fixes)", load: () => import("./reparse.ts") },
   usage: { help: "usage                    show current Claude usage and the guard verdict", load: () => import("./usage-cmd.ts") },
   quiet: { help: "quiet pause|resume|status", load: () => import("./quiet-cmd.ts") },
   schedule: { help: "schedule register|unregister|status", load: () => import("./schedule-cmd.ts") },

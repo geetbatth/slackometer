@@ -22,7 +22,7 @@ export interface TaskDef {
 }
 export interface GradeResult { passed: number; total: number; details: string; error?: string }
 export interface RunMetrics {
-  output_tokens: number; input_tokens: number; cache_read_tokens: number; cache_write_tokens: number
+  output_tokens: number; thinking_tokens: number; input_tokens: number; cache_read_tokens: number; cache_write_tokens: number
   cost_usd: number; tool_calls: number; turns: number; files_read: number; files_read_before_first_edit: number
   ran_tests: boolean; verified_after_last_edit: boolean; minutes: number
   claimed_done: boolean; claim_text: string; digest: string

@@ -48,6 +48,13 @@ export async function readUsage(o: { fetchImpl?: typeof fetch; credPath?: string
   return { five_hour: five, seven_day: week, seven_day_resets_at: String(j.seven_day.resets_at ?? ""), extra_usage_enabled: !!j?.extra_usage?.is_enabled }
 }
 
+/** Same weekly window? The endpoint's reset time jitters by fractions of a second between calls. */
+export function sameWeek(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return true
+  const ta = Date.parse(a), tb = Date.parse(b)
+  return Number.isNaN(ta) || Number.isNaN(tb) ? a === b : Math.abs(ta - tb) < 3_600_000
+}
+
 export function guard(u: Usage, cfg: LocalConfig): { ok: boolean; reason: string } {
   const g = cfg.budget.guard_percent
   if (u.five_hour >= g) return { ok: false, reason: `5-hour usage at ${u.five_hour}% (guard ${g}%)` }

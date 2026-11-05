@@ -5,7 +5,7 @@ import { contenderId, paths } from "./config.ts"
 import { latestLock } from "./calibrate.ts"
 import { loadTasks } from "./tasks.ts"
 import { runOne as realRunOne, resultPath } from "./run-one.ts"
-import { readUsage as realReadUsage, safeGuard as realSafeGuard, addSample, currentRate } from "./usage.ts"
+import { readUsage as realReadUsage, safeGuard as realSafeGuard, addSample, currentRate, sameWeek } from "./usage.ts"
 import type { Contender, DayRecord, Effort, LocalConfig, RunResult, TaskDef, Usage } from "./types.ts"
 
 const GUARD_WAIT = 20 * 60_000
@@ -130,7 +130,7 @@ export async function runDay(cfg: LocalConfig, opts: Partial<DayDeps> = {}): Pro
     // refine the rate: clean only for an uninterrupted day whose weekly usage moved about as much as the bench explains
     if (usageBefore != null && after && spentUsd > 0) {
       const moved = after.seven_day - usageBefore
-      const sameWindow = !beforeNow || beforeNow.seven_day_resets_at === after.seven_day_resets_at
+      const sameWindow = !beforeNow || sameWeek(beforeNow.seven_day_resets_at, after.seven_day_resets_at)
       addSample(paths(cfg).rate, { date: d.date, d_pct: moved, usd: spentUsd, clean: !reason && !resumed && sameWindow && moved > 0 && moved <= pct * 2 + 1 })
     }
     d.log(`${contenderId(contender)}: ${day.status}${reason ? ` (${reason})` : ""}, $${day.cost_usd} ≈ ${pct}% of the weekly limit`)

@@ -68,3 +68,25 @@ test("calibrate with --yes runs every task x level, derives the rate and writes 
   assert.ok(existsSync(join(paths(cfg).locks, "claude-opus-5-5.v1.json")))
   assert.ok(existsSync(join(repo, "results", "t", "suites", "claude-opus-5-5.v1.json"))) // public summary
 })
+
+test("calibrate --parallel runs each task x level once, never more than N at a time", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "slk-calp-"))
+  const base = fixtureCfg()
+  const cfg = { ...base, repo_dir: repo, exclude_tasks: ["crash-task", "sleep-task"], budget: { ...base.budget, percent_of_weekly_per_run: 20, ceiling_percent_of_weekly_per_run: 30 } }
+  const seen: string[] = []
+  let week = 20, live = 0, peak = 0
+  const lock = await calibrate(cfg, cfg.contenders[0], { yes: true, parallel: 2, deps: {
+    runOne: async (t, effort) => {
+      live++; peak = Math.max(peak, live)
+      await new Promise((r) => setTimeout(r, 20))
+      live--; seen.push(`${t.id}/${effort}`); week += 2
+      return { task: t.id, effort, cost_usd: 2, end: "finished" } as never
+    },
+    readUsage: async () => ({ five_hour: 10, seven_day: week, seven_day_resets_at: "", extra_usage_enabled: false }),
+    withQuiet: async (_c, fn) => fn(),
+    today: () => "2026-11-05",
+  } })
+  assert.deepEqual(seen.sort(), ["ok-task/high", "ok-task/medium", "ok-task/xhigh"])
+  assert.equal(peak, 2)
+  assert.equal(lock!.rate_pct_per_usd, 1)
+})

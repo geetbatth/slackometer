@@ -57,3 +57,10 @@ test("rate ignores unclean samples and is null with no data", () => {
   addSample(f, { date: "2026-11-09", d_pct: 1, usd: 10, clean: true })
   assert.equal(currentRate(f), 0.1)
 })
+
+test("sameWeek ignores the endpoint's sub-second jitter but catches a real reset", async () => {
+  const { sameWeek } = await import("./usage.ts")
+  assert.equal(sameWeek("2026-11-10T16:00:00.739091+00:00", "2026-11-10T16:00:00.944869+00:00"), true)
+  assert.equal(sameWeek("2026-11-10T16:00:00.739091+00:00", "2026-11-17T16:00:00.1+00:00"), false)
+  assert.equal(sameWeek("", "2026-11-10T16:00:00Z"), true)
+})

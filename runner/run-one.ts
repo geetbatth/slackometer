@@ -35,7 +35,8 @@ export async function runOne(t: TaskDef, effort: Effort, ctx: RunCtx): Promise<R
       schema: 1, date: ctx.date, machine: ctx.cfg.machine, person: ctx.cfg.person, contender: contenderId(ctx.contender),
       effort, task: t.id, bench: t.bench, task_version: t.version, suite_version: ctx.suiteVersion,
       task_meta: { title: t.title, language: t.language, kind: t.kind, difficulty: t.difficulty, ui: t.ui },
-      pass, score: t.ui && judge && Number.isFinite(judge.score) ? judge.score : grade.total ? Math.round((grade.passed / grade.total) * 1000) / 1000 : 0,
+      // score is always the share of hidden checks passed (0-1); the UI judge's 1-5 rating is kept separately in `judge`
+      pass, score: grade.total ? Math.round((grade.passed / grade.total) * 1000) / 1000 : 0,
       tests_passed: grade.passed, tests_total: grade.total, ui_checks: ui, judge,
       ...m, model_id: m.model_id || ctx.contender.model,
       started_at: started.toISOString(), finished_at: now().toISOString(),

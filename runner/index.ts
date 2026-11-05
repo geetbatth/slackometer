@@ -7,7 +7,7 @@ import type { DayRecord, LocalConfig, RunResult, SuiteLock } from "./types.ts"
 
 const DATE_DIR = /^\d{4}-\d{2}-\d{2}$/
 const COLS = ["date", "machine", "contender", "effort", "task", "bench", "task_version", "suite_version", "cc_version", "end", "pass", "score", "tests_passed", "tests_total", "ui_checks",
-  "output_tokens", "input_tokens", "cache_read_tokens", "cache_write_tokens", "cost_usd", "tool_calls", "files_read", "ran_tests", "verified_after_last_edit", "minutes", "claimed_done", "claim_text", "digest"] as const
+  "output_tokens", "thinking_tokens", "input_tokens", "cache_read_tokens", "cache_write_tokens", "cost_usd", "tool_calls", "files_read", "ran_tests", "verified_after_last_edit", "minutes", "claimed_done", "claim_text", "digest"] as const
 const INTERN = new Set(["date", "machine", "contender", "effort", "task", "bench", "cc_version", "end", "claim_text", "digest"])
 const BOOL = new Set(["pass", "ran_tests", "verified_after_last_edit", "claimed_done"])
 

@@ -44,3 +44,28 @@ test("empty transcript (claude never started) is errored, not a crash", () => {
   const m = parseTranscript([], hints, 1000, false)
   assert.equal(m.end, "errored"); assert.equal(m.output_tokens, 0)
 })
+
+test("reading through the shell counts as reading files", async () => {
+  const { shellReadFiles } = await import("./transcript.ts")
+  assert.deepEqual(shellReadFiles("cat Importer/*.cs Importer/*.csproj tests/*"), ["Importer/*.cs", "Importer/*.csproj", "tests/*"])
+  assert.deepEqual(shellReadFiles("find . -type f | head -50 && cat README.md"), ["README.md"])
+  assert.deepEqual(shellReadFiles("head -n 40 src/a.ts; sed -n '1,80p' src/b.ts"), ["src/a.ts", "src/b.ts"])
+  assert.deepEqual(shellReadFiles("Get-Content -TotalCount 20 .\\app.ps1"), [".\\app.ps1"])
+  assert.deepEqual(shellReadFiles("dotnet test 2>&1 | tail -25"), [])
+  assert.deepEqual(shellReadFiles("cat > notes.txt"), [])
+})
+
+test("shell reads appear in files_read; thinking tokens are recorded", async () => {
+  const { parseTranscript } = await import("./transcript.ts")
+  const lines = [
+    { type: "system", subtype: "init", cwd: "C:\\runs\\x", claude_code_version: "2.1.316", model: "claude-opus-5-5" },
+    { type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command: "cat README.md src/a.cs" } }] } },
+    { type: "assistant", message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "C:\\runs\\x\\src\\a.cs" } }] } },
+    { type: "assistant", message: { content: [{ type: "tool_use", name: "Edit", input: { file_path: "C:\\runs\\x\\src\\a.cs" } }] } },
+    { type: "result", subtype: "success", result: "Done.", total_cost_usd: 0.1, num_turns: 3, usage: { output_tokens: 900, output_tokens_details: { thinking_tokens: 400 } } },
+  ].map((x) => JSON.stringify(x))
+  const m = parseTranscript(lines, { test_command_hints: [] }, 60_000, false)
+  assert.equal(m.files_read, 2)                 // README.md and src/a.cs (same file via cat and Read)
+  assert.equal(m.files_read_before_first_edit, 2)
+  assert.equal(m.thinking_tokens, 400)
+})

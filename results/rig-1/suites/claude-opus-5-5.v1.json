@@ -1,0 +1,41 @@
+{
+  "contender": "claude-code/claude-opus-5-5",
+  "machine": "rig-1",
+  "version": 1,
+  "calibrated_at": "2026-11-05",
+  "efforts": [
+    "medium",
+    "high",
+    "xhigh"
+  ],
+  "tasks": [
+    {
+      "id": "cs-money-rounding",
+      "version": 1
+    },
+    {
+      "id": "ui-ugly-form",
+      "version": 1
+    },
+    {
+      "id": "ps-log-rotate",
+      "version": 1
+    },
+    {
+      "id": "py-parser-tests",
+      "version": 1
+    },
+    {
+      "id": "sql-report-bug",
+      "version": 1
+    },
+    {
+      "id": "ts-date-range",
+      "version": 1
+    },
+    {
+      "id": "ps-deploy-script",
+      "version": 1
+    }
+  ]
+}

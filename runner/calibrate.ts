@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { contenderId, paths } from "./config.ts"
 import { loadTasks, missingTools } from "./tasks.ts"
 import { runOne as realRunOne } from "./run-one.ts"
-import { readUsage as realReadUsage, addSample, currentRate, guard } from "./usage.ts"
+import { readUsage as realReadUsage, addSample, currentRate, guard, sameWeek } from "./usage.ts"
 import type { Contender, Effort, LocalConfig, RunResult, SuiteLock, TaskDef, Usage } from "./types.ts"
 
 const DIFF_ORDER = { easy: 0, medium: 1, hard: 2 } as const
@@ -59,7 +59,7 @@ export interface CalDeps {
   sleep: (ms: number) => Promise<void>
 }
 
-export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { yes: boolean; deps?: Partial<CalDeps> }): Promise<SuiteLock | null> {
+export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { yes: boolean; parallel?: number; deps?: Partial<CalDeps> }): Promise<SuiteLock | null> {
   const d: CalDeps = {
     runOne: realRunOne,
     readUsage: () => realReadUsage(),
@@ -97,28 +97,37 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
     usage.before = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")).usage_before : await d.readUsage()
     mkdirSync(calDir, { recursive: true }); mkdirSync(paths(cfg).state, { recursive: true })
     writeFileSync(stateFile, JSON.stringify({ started: date, usage_before: usage.before }, null, 2))
+    const todo: [TaskDef, Effort][] = []
     for (const t of tasks) for (const e of efforts) {
       const done = join(calDir, `${t.id}__${e}.json`)
       if (existsSync(done)) {
         const r = JSON.parse(readFileSync(done, "utf8")) as RunResult
         if (r.end !== "limited") { results.push(r); continue }
       }
-      // wait out the usage guard (up to 12 h) instead of throwing the night away
-      for (let waited = 0; ; waited += GUARD_WAIT) {
-        const u = await d.readUsage().catch(() => null)
-        const g = u ? guard(u, cfg) : { ok: false, reason: "usage unreadable" }
-        if (g.ok) break
-        if (waited >= 12 * 3_600_000) throw new Error(`stopping calibration: ${g.reason}. Finished runs are kept; run calibrate --yes again to continue.`)
-        d.log(`  waiting: ${g.reason}`); await d.sleep(GUARD_WAIT)
-      }
-      d.log(`  ${t.id} @ ${e}`)
-      results.push(await d.runOne(t, e, { cfg, date: `calibration-v${version}`, suiteVersion: version, contender }))
+      todo.push([t, e])
     }
+    // several runs at once only changes wall-clock minutes (builds share the CPU); tokens, cost and scores are per run
+    const worker = async () => {
+      for (let next = todo.shift(); next; next = todo.shift()) {
+        const [t, e] = next
+        // wait out the usage guard (up to 12 h) instead of throwing the night away
+        for (let waited = 0; ; waited += GUARD_WAIT) {
+          const u = await d.readUsage().catch(() => null)
+          const g = u ? guard(u, cfg) : { ok: false, reason: "usage unreadable" }
+          if (g.ok) break
+          if (waited >= 12 * 3_600_000) throw new Error(`stopping calibration: ${g.reason}. Finished runs are kept; run calibrate --yes again to continue.`)
+          d.log(`  waiting: ${g.reason}`); await d.sleep(GUARD_WAIT)
+        }
+        d.log(`  ${t.id} @ ${e}`)
+        results.push(await d.runOne(t, e, { cfg, date: `calibration-v${version}`, suiteVersion: version, contender }))
+      }
+    }
+    await Promise.all(Array.from({ length: Math.max(1, opts.parallel ?? 1) }, worker))
     usage.after = await d.readUsage()
   })
   const usd = results.reduce((a, r) => a + r.cost_usd, 0)
   const before = usage.before!, after = usage.after!
-  if (before.seven_day_resets_at && after.seven_day_resets_at && before.seven_day_resets_at !== after.seven_day_resets_at)
+  if (!sameWeek(before.seven_day_resets_at, after.seven_day_resets_at))
     throw new Error("your weekly usage window reset during calibration, so the rate can't be measured. Run calibrate --yes again (finished runs are reused).")
   const dPct = after.seven_day - before.seven_day
   if (dPct <= 0) throw new Error(`weekly usage didn't move (${dPct} points) over $${usd.toFixed(2)} of runs, so the rate can't be measured. Run calibrate --yes again later (finished runs are reused).`)

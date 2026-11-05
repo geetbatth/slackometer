@@ -7,6 +7,34 @@ const HEDGE = /\b(couldn'?t|could not|unable|not (yet )?(run|verified|tested)|pa
 const LIMIT = /usage limit|rate limit|\b429\b|overloaded|limit reached/i
 
 type Json = Record<string, any>
+
+// Reading through the shell counts as reading: models often explore with `cat a.cs b.cs` instead of the Read tool.
+const SHELL_READERS = new Set(["cat", "head", "tail", "less", "more", "type", "nl", "bat", "get-content", "gc"])
+export function shellReadFiles(command: string): string[] {
+  const out: string[] = []
+  for (const seg of command.split(/&&|\|\||;|\||\r?\n/)) {
+    const words = seg.trim().match(/"[^"]*"|'[^']*'|\S+/g) ?? []
+    if (!words.length) continue
+    const cmd = words[0].toLowerCase()
+    const sedN = cmd === "sed" && words.includes("-n")
+    if (!SHELL_READERS.has(cmd) && !sedN) continue
+    for (let i = 1; i < words.length; i++) {
+      const w = words[i].replace(/^["']|["']$/g, "")
+      if (/^[<>&0-9]*[<>]/.test(w)) break                       // redirection: the rest isn't input
+      if (w.startsWith("-")) { if (/^-(n|c|-lines|-bytes|TotalCount|Tail|Head)$/i.test(w)) i++; continue }
+      if (sedN && /^\d*,?\$?\d*p$|^\d+,\d+p$/.test(w)) continue   // sed -n '1,40p' script
+      if (/^\d+$/.test(w)) continue
+      out.push(w)
+    }
+  }
+  return out
+}
+const normPath = (p: string, cwd: string) => {
+  let x = p.replace(/\\/g, "/").toLowerCase()
+  const c = cwd.replace(/\\/g, "/").toLowerCase().replace(/\/$/, "")
+  if (c && x.startsWith(c + "/")) x = x.slice(c.length + 1)
+  return x.replace(/^\.\//, "")
+}
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
 
 export function parseTranscript(lines: string[], t: Pick<TaskDef, "test_command_hints">, wallMs: number, timedOut: boolean, stderr = ""): RunMetrics {
@@ -23,9 +51,13 @@ export function parseTranscript(lines: string[], t: Pick<TaskDef, "test_command_
   const isTest = (c: { name: string; input: Json }) => c.name === "Bash" && hints.some((h) => h.test(String(c.input.command ?? "")))
   const firstEdit = calls.findIndex((c) => EDIT_TOOLS.has(c.name))
   let lastEdit = -1; calls.forEach((c, i) => { if (EDIT_TOOLS.has(c.name)) lastEdit = i })
-  const reads = calls.map((c, i) => ({ c, i })).filter(({ c }) => c.name === "Read")
-  const files = new Set(reads.map(({ c }) => String(c.input.file_path)))
-  const before = new Set(reads.filter(({ i }) => firstEdit < 0 || i < firstEdit).map(({ c }) => String(c.input.file_path)))
+  const cwd = String(init.cwd ?? "")
+  const reads = calls.flatMap((c, i) =>
+    c.name === "Read" ? [{ f: normPath(String(c.input.file_path), cwd), i }]
+    : c.name === "Bash" ? shellReadFiles(String(c.input.command ?? "")).map((f) => ({ f: normPath(f, cwd), i }))
+    : [])
+  const files = new Set(reads.map((r) => r.f))
+  const before = new Set(reads.filter(({ i }) => firstEdit < 0 || i < firstEdit).map((r) => r.f))
   const testIdx = calls.map((c, i) => (isTest(c) ? i : -1)).filter((i) => i >= 0)
   const edits = calls.filter((c) => EDIT_TOOLS.has(c.name)).length
   const ran = testIdx.length > 0
@@ -38,7 +70,7 @@ export function parseTranscript(lines: string[], t: Pick<TaskDef, "test_command_
 
   const testsPart = !ran ? "; never ran the tests" : `, ran tests ${plural(testIdx.length, "time")}; ${verified ? "re-ran them after its last edit" : "never re-ran them after its last edit"}`
   return {
-    output_tokens: u.output_tokens ?? 0, input_tokens: u.input_tokens ?? 0,
+    output_tokens: u.output_tokens ?? 0, thinking_tokens: u.output_tokens_details?.thinking_tokens ?? 0, input_tokens: u.input_tokens ?? 0,
     cache_read_tokens: u.cache_read_input_tokens ?? 0, cache_write_tokens: u.cache_creation_input_tokens ?? 0,
     cost_usd: Number(result?.total_cost_usd ?? 0), tool_calls: calls.length, turns: Number(result?.num_turns ?? 0),
     files_read: files.size, files_read_before_first_edit: before.size,

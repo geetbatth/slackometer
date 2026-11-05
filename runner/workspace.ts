@@ -1,13 +1,15 @@
 import { cp, mkdir, rm } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { runsRoot } from "./isolate.ts"
-import { join, sep } from "node:path"
+import { basename, dirname, join, sep } from "node:path"
 import { randomBytes } from "node:crypto"
 import type { TaskDef } from "./types.ts"
 
 /** Fresh copy of ONLY the task's workspace/. Graders and references never come along. */
 export async function makeRunDir(t: TaskDef): Promise<string> {
-  const dir = join(runsRoot(), `${t.id}-${randomBytes(4).toString("hex")}`)
+  // <runs>/<task>-<id>/work: models sometimes make sibling folders (../_baseline) to compare against;
+  // the extra level keeps those inside this run's own space, away from parallel runs, and they go with it
+  const dir = join(runsRoot(), `${t.id}-${randomBytes(4).toString("hex")}`, "work")
   await mkdir(dir, { recursive: true })
   const SKIP = new Set(["bin", "obj", "node_modules", "__pycache__", ".pytest_cache"])
   const src = join(t.dir, "workspace")
@@ -29,5 +31,6 @@ export async function applyReference(t: TaskDef, dir: string): Promise<void> {
 }
 
 export async function removeRunDir(dir: string): Promise<void> {
+  if (basename(dir) === "work") dir = dirname(dir)
   await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {})
 }
