@@ -135,6 +135,11 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
   addSample(rateFile, { date, d_pct: dPct, usd, clean: dPct >= 5 || known == null })
   const rate = currentRate(rateFile)
   if (!rate) throw new Error("could not derive a usage rate (no cost recorded?)")
+  return writeLock(cfg, contender, tasks, efforts, results, version, date, rate, d.log)
+}
+
+/** Pick the suite from calibration results at the current budget and write the lock (local) and its summary (public). */
+function writeLock(cfg: LocalConfig, contender: Contender, tasks: TaskDef[], efforts: Effort[], results: RunResult[], version: number, date: string, rate: number, log: (s: string) => void): SuiteLock {
   const allowance = cfg.budget.percent_of_weekly_per_run / rate
 
   const costs = new Map<string, { task: TaskDef; usd: Record<Effort, number> }>()
@@ -158,6 +163,25 @@ export async function calibrate(cfg: LocalConfig, contender: Contender, opts: { 
   mkdirSync(publicSuitesDir(cfg), { recursive: true })
   writeFileSync(join(publicSuitesDir(cfg), `${slug(contender)}.v${version}.json`), JSON.stringify({ contender: lock.contender, machine: lock.machine, version, calibrated_at: date, efforts, tasks: lock.tasks.map((t) => ({ id: t.id, version: t.version })) }, null, 2))
   const planned = ids.reduce((a, id) => a + Object.values(costs.get(id)!.usd).reduce((x, y) => x + y, 0), 0)
-  d.log(`Locked suite v${version}: ${ids.length} tasks x ${efforts.length} levels, planned ~$${planned.toFixed(2)} of a $${allowance.toFixed(2)} run-day allowance.`)
+  log(`Locked suite v${version}: ${ids.length} tasks x ${efforts.length} levels, planned ~$${planned.toFixed(2)} of a $${allowance.toFixed(2)} run-day allowance.`)
   return lock
+}
+
+/**
+ * Re-pick the suite of the latest calibration at the current budget, without running anything.
+ * Only before the first run day of that suite: changing a suite under existing results would break its trend.
+ */
+export function relock(cfg: LocalConfig, contender: Contender, log: (s: string) => void = console.log): SuiteLock {
+  const prev = latestLock(cfg, contender)
+  if (!prev) throw new Error("nothing to relock: calibrate first")
+  const root = paths(cfg).machineResults
+  const used = existsSync(root) && readdirSync(root).some((day) => /^\d{4}-\d{2}-\d{2}$/.test(day) &&
+    readdirSync(join(root, day)).some((f) => { try { const r = JSON.parse(readFileSync(join(root, day, f), "utf8")); return r.contender === prev.contender && r.suite_version === prev.version } catch { return false } }))
+  if (used) throw new Error(`suite v${prev.version} already has run days; calibrate again to make a new suite instead`)
+  const calDir = join(root, `calibration-v${prev.version}`)
+  const results = readdirSync(calDir).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(readFileSync(join(calDir, f), "utf8")) as RunResult)
+  const rate = currentRate(paths(cfg).rate)
+  if (!rate) throw new Error("no usage rate on this machine yet: calibrate first")
+  const tasks = loadTasks(cfg).filter((t) => !missingTools(t).length)
+  return writeLock(cfg, contender, tasks, prev.efforts, results, prev.version, prev.calibrated_at, rate, log)
 }

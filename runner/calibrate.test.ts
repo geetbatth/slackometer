@@ -90,3 +90,26 @@ test("calibrate --parallel runs each task x level once, never more than N at a t
   assert.equal(peak, 2)
   assert.equal(lock!.rate_pct_per_usd, 1)
 })
+
+test("relock re-picks the suite at a new budget without running anything, until the suite has run days", async () => {
+  const { relock } = await import("./calibrate.ts")
+  const { mkdirSync, writeFileSync, readFileSync } = await import("node:fs")
+  const repo = mkdtempSync(join(tmpdir(), "slk-rel-"))
+  const base = fixtureCfg()
+  const cfg = { ...base, repo_dir: repo, exclude_tasks: ["crash-task", "sleep-task"], budget: { ...base.budget, percent_of_weekly_per_run: 20, ceiling_percent_of_weekly_per_run: 30 } }
+  let week = 20
+  await calibrate(cfg, cfg.contenders[0], { yes: true, deps: {
+    runOne: async (t, effort) => { week += 2; const r = { schema: 1, task: t.id, effort, cost_usd: 2, end: "finished" }; mkdirSync(join(paths(cfg).machineResults, "calibration-v1"), { recursive: true }); writeFileSync(join(paths(cfg).machineResults, "calibration-v1", `${t.id}__${effort}.json`), JSON.stringify(r)); return r as never },
+    readUsage: async () => ({ five_hour: 10, seven_day: week, seven_day_resets_at: "", extra_usage_enabled: false }),
+    withQuiet: async (_c, fn) => fn(), today: () => "2026-11-05",
+  } })
+  const tight = { ...cfg, budget: { ...cfg.budget, percent_of_weekly_per_run: 1 } }
+  assert.throws(() => relock(tight, cfg.contenders[0], () => {}), /no task fits/)
+  const lock = relock({ ...cfg, budget: { ...cfg.budget, percent_of_weekly_per_run: 40 } }, cfg.contenders[0], () => {})
+  assert.equal(lock.version, 1); assert.equal(lock.allowance_usd, 40)
+  assert.equal(JSON.parse(readFileSync(join(paths(cfg).locks, "claude-opus-5-5.v1.json"), "utf8")).allowance_usd, 40)
+  // once a run day used suite v1, relocking it is refused
+  mkdirSync(join(paths(cfg).machineResults, "2026-11-09"), { recursive: true })
+  writeFileSync(join(paths(cfg).machineResults, "2026-11-09", "ok-task__high.json"), JSON.stringify({ contender: lock.contender, suite_version: 1 }))
+  assert.throws(() => relock(cfg, cfg.contenders[0], () => {}), /already has run days/)
+})

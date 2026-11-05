@@ -34,7 +34,19 @@
       "version": 1
     },
     {
+      "id": "cs-csv-import",
+      "version": 1
+    },
+    {
       "id": "ps-deploy-script",
+      "version": 1
+    },
+    {
+      "id": "py-explain-repo",
+      "version": 1
+    },
+    {
+      "id": "sql-safe-migration",
       "version": 1
     }
   ]
